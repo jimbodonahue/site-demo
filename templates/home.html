@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Home | Interactive Django Platform{% endblock %}
+
+{% block content %}
+<div class="space-y-12">
+    <!-- Hero Section -->
+    <section class="text-center py-12 px-4 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-3xl text-white shadow-xl">
+        <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight">
+            Master Data Science & Python Interactively
+        </h1>
+        <p class="mt-4 max-w-2xl mx-auto text-lg text-primary-100">
+            Learn through hands-on tracks and execute Python code in live interactive notebooks.
+        </p>
+        <div class="mt-8 flex justify-center gap-4 flex-wrap">
+            <a href="{% url 'exercises:list' %}" class="px-6 py-3 rounded-full bg-white text-primary-600 font-semibold shadow hover:bg-neutral-100 transition">
+                Explore Tracks
+            </a>
+        </div>
+    </section>
+
+    <!-- Quick Navigation Cards -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition">
+            <div class="w-12 h-12 rounded-xl bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl mb-4">
+                📚
+            </div>
+            <h2 class="text-xl font-bold text-neutral-900 mb-2">Learning Tracks</h2>
+            <p class="text-neutral-600 mb-4">Follow structured paths of interactive exercises designed for clear skill building.</p>
+            <a href="{% url 'exercises:list' %}" class="text-primary-600 font-semibold hover:underline">View Tracks &rarr;</a>
+        </div>
+
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-neutral-200 hover:shadow-md transition">
+            <div class="w-12 h-12 rounded-xl bg-secondary-100 text-secondary-600 flex items-center justify-center font-bold text-xl mb-4">
+                ⚡
+            </div>
+            <h2 class="text-xl font-bold text-neutral-900 mb-2">Interactive Exercises</h2>
+            <p class="text-neutral-600 mb-4">Run live Python code in-browser, generate plots, and get immediate feedback on your solutions.</p>
+            <a href="{% url 'exercises:list' %}" class="text-secondary-600 font-semibold hover:underline">Start Coding &rarr;</a>
+        </div>
+    </section>
+</div>
+{% endblock %}

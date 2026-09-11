@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Cookie Policy{% endblock %}
+
+{% block content %}
+<section class="max-w-4xl mx-auto py-8 px-4">
+    <div class="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-6">Cookie Policy</h1>
+        
+        <div class="prose dark:prose-invert text-slate-600 dark:text-slate-300 space-y-4">
+            <p><strong>Effective Date:</strong> September 4, 2026</p>
+            
+            <p>This Cookie Policy explains how we use cookies and similar technologies. We are committed to minimizing the use of cookies and tracking technologies to ensure your privacy.</p>
+            
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">1. What Are Cookies?</h2>
+            <p>Cookies are small text files stored in your browser's directory by websites you visit. They are typically used to maintain user sessions, remember preferences, and track analytics.</p>
+            
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">2. Essential Cookies We Use</h2>
+            <p>We do not use marketing, profiling, advertising, or third-party tracking cookies. We only use strictly necessary cookies for core site security and forum identity:</p>
+            <ul class="list-disc pl-5 space-y-2">
+                <li><strong>Django Session Cookie (sessionid):</strong> This cookie is set when you access the forum or restore an identity passkey. It maintains your temporary session state and anonymous identity. It does not contain any personal information.</li>
+                <li><strong>CSRF Token Cookie (csrftoken):</strong> This cookie protects you and our site against Cross-Site Request Forgery attacks on interactive forms. It is strictly necessary for security purposes.</li>
+            </ul>
+
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">3. Optional Anonymous Usage Metrics</h2>
+            <p>If you choose <strong>Accept</strong> in the consent banner, we enable first-party anonymous usage metrics. These are not third-party analytics cookies. Instead, your browser stores a random anonymous ID in <code>localStorage</code> and periodically sends usage events (page time, code runs, resets, evaluations, and scenario selections) to our own servers.</p>
+            <p>We use this information only to improve the platform. Metrics do not include notebook source code, names, emails, or advertising profiles.</p>
+            
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">4. Local Storage</h2>
+            <p>We use your browser's <code>localStorage</code> to store exercise progress, theme preferences, consent choice, and (if accepted) the anonymous metrics ID. Progress and theme data stay on your device unless you explicitly export a Passkey Bundle.</p>
+            
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">5. Declining Cookies</h2>
+            <p>If you choose <strong>Reject</strong> in the cookie consent banner, optional anonymous usage metrics are disabled and any stored anonymous metrics ID is removed. Session cookies needed for security may still apply when you use the forum. You can still use the platform's exercises and coding spaces.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

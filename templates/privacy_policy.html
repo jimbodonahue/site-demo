@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy{% endblock %}
+
+{% block content %}
+<section class="max-w-4xl mx-auto py-8 px-4">
+    <div class="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-6">Privacy Policy</h1>
+        
+        <div class="prose dark:prose-invert text-slate-600 dark:text-slate-300 space-y-4">
+            <p><strong>Effective Date:</strong> September 4, 2026</p>
+            
+            <p>We prioritize your privacy above all else. This platform is designed to be privacy-first, collecting no personal identifiers (such as emails, names, or passwords) for public users.</p>
+            
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">1. Information We Do Not Collect</h2>
+            <p>We do not collect or store any emails, passwords, names, or IP logs that link back to your real-world identity. You do not need to register with an email to use the platform's exercises or discussion forum.</p>
+            
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">2. Local Storage of Exercise Progress</h2>
+            <p>Your interactive notebook coding progress and attempt histories are stored primarily on your own machine in your browser's local storage (<code>localStorage</code>). Notebook source code is not used for marketing or profiling.</p>
+            
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">3. Anonymous Forum Identity & Passkeys</h2>
+            <p>When you participate in the community discussion forums, we generate an anonymous token-based user profile on the server. This profile is identified solely by a 32-character hexadecimal token (Passkey) which you can download as a JSON bundle file to your own machine. If you lose this passkey and clear your browser session, we cannot recover your forum posts or exercise progress because we hold no email association.</p>
+
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">4. Anonymous Usage Metrics</h2>
+            <p>If you accept cookies/preferences in the consent banner, we collect first-party anonymous usage metrics to understand how the learning platform is used and to improve exercises. These metrics may include:</p>
+            <ul class="list-disc pl-5 space-y-2">
+                <li>Which pages or exercises were viewed</li>
+                <li>Approximate time spent on a page (active time while the tab is visible)</li>
+                <li>How often code is run, reset, or evaluated</li>
+                <li>Which difficulty or scenario options were selected</li>
+            </ul>
+            <p>Events are tied only to a random anonymous ID created in your browser. We do not store names, emails, IP addresses, or notebook source code in these metrics. Rejecting consent disables this collection. You can clear the anonymous ID by rejecting consent or clearing site data in your browser.</p>
+            
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">5. Cookies</h2>
+            <p>We use strictly necessary session cookies solely to authenticate your requests on the forum and handle identity restoration. No third-party tracking, profiling, or advertising cookies are utilized. Read our <a href="{% url 'cookie_policy' %}" class="text-sky-600 hover:underline">Cookie Policy</a> for details.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

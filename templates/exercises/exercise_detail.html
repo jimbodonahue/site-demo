@@ -1,0 +1,943 @@
+{% extends "base.html" %}
+
+{% block title %}{{ exercise.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .exercise-shell textarea {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .exercise-shell pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .j-tb-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.375rem 0.625rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        border: 1px solid #cbd5e1;
+        background-color: #f8fafc;
+        color: #334155;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        transition: all 0.15s ease-in-out;
+        cursor: pointer;
+        user-select: none;
+    }
+    .j-tb-btn:hover {
+        background-color: #e2e8f0;
+        border-color: #94a3b8;
+    }
+    .dark .j-tb-btn {
+        border-color: #475569;
+        background-color: #1e293b;
+        color: #e2e8f0;
+    }
+    .dark .j-tb-btn:hover {
+        background-color: #334155;
+        border-color: #64748b;
+    }
+    .j-cell-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        border: 1px solid #e2e8f0;
+        background-color: #ffffff;
+        color: #475569;
+        transition: all 0.15s ease-in-out;
+        cursor: pointer;
+        user-select: none;
+    }
+    .j-cell-btn:hover {
+        background-color: #f1f5f9;
+        border-color: #cbd5e1;
+    }
+    .dark .j-cell-btn {
+        border-color: #334155;
+        background-color: #0f172a;
+        color: #cbd5e1;
+    }
+    .dark .j-cell-btn:hover {
+        background-color: #1e293b;
+        border-color: #475569;
+    }
+
+    .dataframe-preview-wrap {
+        overflow-x: auto;
+        max-width: 100%;
+    }
+
+    table.dataframe-preview {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.75rem;
+        line-height: 1.35;
+        color: #0f172a;
+        background: #ffffff;
+    }
+
+    .dark table.dataframe-preview {
+        color: #e2e8f0;
+        background: #020617;
+    }
+
+    table.dataframe-preview th,
+    table.dataframe-preview td {
+        padding: 0.4rem 0.55rem;
+        border: 1px solid #e2e8f0;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .dark table.dataframe-preview th,
+    .dark table.dataframe-preview td {
+        border-color: #334155;
+    }
+
+    table.dataframe-preview thead th {
+        background: #f1f5f9;
+        font-weight: 600;
+        color: #334155;
+    }
+
+    .dark table.dataframe-preview thead th {
+        background: #1e293b;
+        color: #cbd5e1;
+    }
+
+    table.dataframe-preview tbody tr:nth-child(even) {
+        background: #f8fafc;
+    }
+
+    .dark table.dataframe-preview tbody tr:nth-child(even) {
+        background: #0f172a;
+    }
+
+    table.dataframe-preview th:first-child,
+    table.dataframe-preview td:first-child {
+        color: #64748b;
+        font-weight: 500;
+        background: #f8fafc;
+    }
+
+    .dark table.dataframe-preview th:first-child,
+    .dark table.dataframe-preview td:first-child {
+        color: #94a3b8;
+        background: #0f172a;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="exercise-shell space-y-6" data-run-url="{{ run_url }}" data-reset-url="{{ reset_url }}">
+    <form class="hidden">{% csrf_token %}</form>
+    
+    <!-- Header Banner -->
+    <div class="flex flex-col gap-4 rounded-3xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 lg:flex-row lg:items-start lg:justify-between transition-colors">
+        <div class="max-w-3xl space-y-3">
+            <p class="text-sm font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Programming Exercise</p>
+            <h1 class="text-3xl font-bold text-slate-900 dark:text-white">{{ exercise.title }}</h1>
+            <div class="prose dark:prose-invert max-w-none text-slate-600 dark:text-slate-300">
+                {{ exercise.render_intro_html|safe }}
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            <button id="repeat-saved-button" class="rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 shadow-sm flex items-center gap-2">
+                <span>↺</span><span>Repeat Saved Attempt</span>
+            </button>
+            <button id="reset-data-button" class="rounded-full bg-slate-800 dark:bg-slate-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:hover:bg-slate-600 shadow-sm">Reset Data</button>
+        </div>
+    </div>
+
+    <!-- 2-Column Main Layout: Left = 1/3 width (Data Features + Exercise Graphic), Right = 2/3 width (Notebook + Evaluation) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- LEFT COLUMN: 1/3 width (lg:col-span-1) -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- 1. Data Features Card -->
+            <aside class="space-y-4 rounded-3xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Data Features</p>
+                    <h2 class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">Choose the scenario</h2>
+                    <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Select the dataset feature you want the notebook to start with.</p>
+                </div>
+                <div id="topic-choice-wrap" class="hidden space-y-2">
+                    <label for="topic-choice-select" class="block text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">Select topic</label>
+                    <select id="topic-choice-select" class="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-medium text-slate-800 dark:text-slate-100 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"></select>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">Difficulty</p>
+                    <div id="feature-choice-list" class="space-y-2"></div>
+                </div>
+            </aside>
+
+            <!-- 2. Exercise Graphic Card (Moved under Data Features in 1/3 column) -->
+            <aside class="space-y-4 rounded-3xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Exercise Graphic</p>
+                    <h2 class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">Visual Reference & Data Preview</h2>
+                </div>
+                <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 text-slate-700 dark:text-slate-300">
+                    {{ exercise.render_graphic_html|safe }}
+                </div>
+                <div id="right-panel-live-plot" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 text-sm text-slate-500 dark:text-slate-400 text-center">
+                    Run the notebook to show the latest plot or dataframe preview here.
+                </div>
+            </aside>
+        </div>
+
+        <!-- RIGHT COLUMN: 2/3 width (lg:col-span-2) -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- 1. Notebook Card -->
+            <section class="space-y-4 rounded-3xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Notebook</p>
+                        <h2 class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">Coding space</h2>
+                    </div>
+                </div>
+
+                <div id="task-prompt-banner" class="{% if not task_prompt %}hidden {% endif %}rounded-2xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 px-4 py-3">
+                    <p class="text-xs font-semibold uppercase tracking-[0.15em] text-sky-700 dark:text-sky-300">Task</p>
+                    <p id="task-prompt-text" class="mt-2 text-sm leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap">{{ task_prompt }}</p>
+                </div>
+
+                <!-- Classic Jupyter Notebook Toolbar -->
+                <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-2 shadow-inner">
+                    <button type="button" id="tb-save" class="j-tb-btn" title="Save Progress">
+                        <span>💾</span><span class="hidden sm:inline">Save</span>
+                    </button>
+                    <button type="button" id="tb-add" class="j-tb-btn" title="Insert Cell Below">
+                        <span>➕</span><span class="hidden sm:inline">Cell</span>
+                    </button>
+                    <span class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5"></span>
+                    <button type="button" id="tb-cut" class="j-tb-btn" title="Cut Selected Cell">
+                        <span>✂️</span>
+                    </button>
+                    <button type="button" id="tb-copy" class="j-tb-btn" title="Copy Selected Cell">
+                        <span>📋</span>
+                    </button>
+                    <button type="button" id="tb-move-up" class="j-tb-btn" title="Move Selected Cell Up">
+                        <span>▲</span>
+                    </button>
+                    <button type="button" id="tb-move-down" class="j-tb-btn" title="Move Selected Cell Down">
+                        <span>▼</span>
+                    </button>
+                    <span class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5"></span>
+                    <button type="button" id="tb-run" class="j-tb-btn bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:hover:bg-emerald-900/70 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 font-semibold" title="Run Cells">
+                        <span>▶</span><span>Run</span>
+                    </button>
+                    <button type="button" id="tb-interrupt" class="j-tb-btn" title="Interrupt Kernel">
+                        <span>⬛</span>
+                    </button>
+                    <button type="button" id="tb-restart" class="j-tb-btn" title="Restart Kernel">
+                        <span>↻</span><span class="hidden sm:inline">Restart</span>
+                    </button>
+                    <span class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5"></span>
+                    <select id="tb-cell-type" class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs px-2 py-1 shadow-sm font-medium outline-none">
+                        <option value="code">Code</option>
+                        <option value="markdown" disabled>Markdown</option>
+                    </select>
+                </div>
+
+                <div id="notebook-cells" class="space-y-4"></div>
+            </section>
+
+            <!-- 2. Separate Evaluation & Progress Card -->
+            <section class="space-y-4 rounded-3xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
+                <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-700 pb-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Validation</p>
+                        <h2 class="text-xl font-bold text-slate-900 dark:text-white">Exercise Evaluation & Progress</h2>
+                    </div>
+                    <div class="flex flex-wrap gap-3">
+                        <button id="evaluate-button" type="button" class="rounded-xl bg-sky-600 hover:bg-sky-500 text-white px-5 py-2.5 text-sm font-bold shadow-md transition-all flex items-center gap-2">
+                            <span>🔍</span><span>Evaluate Exercise</span>
+                        </button>
+                        <button id="repeat-saved-button-eval" type="button" class="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 text-sm font-semibold shadow-md transition-all flex items-center gap-2">
+                            <span>↺</span><span>Repeat Saved Attempt</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Explanation Banner (Appears when evaluation is run) -->
+                <div id="evaluation-explanation-container" class="hidden rounded-2xl p-4 transition-colors border">
+                    <div class="flex items-start gap-3">
+                        <span id="evaluation-status-icon" class="text-2xl"></span>
+                        <div class="space-y-1">
+                            <h3 id="evaluation-status-title" class="font-bold text-base"></h3>
+                            <p id="evaluation-explanation-text" class="text-sm leading-relaxed"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Summary -->
+                <div class="rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Progress Status</p>
+                    <div id="progress-summary" class="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">Click "Evaluate Exercise" to run tests and check your progress.</div>
+                </div>
+
+                <!-- Individual Checks List -->
+                <div id="evaluation-checks-wrapper" class="hidden rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 space-y-2">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-2">Test Checks Results</p>
+                    <ul id="evaluation-checks" class="space-y-2 text-sm"></ul>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    {% if exercise.soft_skill_prompt %}
+    <section class="rounded-3xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors space-y-4">
+        <div class="border-b border-slate-200 dark:border-slate-700 pb-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Soft Skill</p>
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white">Reflection</h2>
+        </div>
+        <p class="text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-line">{{ exercise.soft_skill_prompt }}</p>
+        <form method="post" action="{{ soft_skill_url }}" class="space-y-4" id="soft-skill-form">
+            {% csrf_token %}
+            <label for="soft_skill_response" class="sr-only">Your soft skill response</label>
+            <textarea
+                id="soft_skill_response"
+                name="soft_skill_response"
+                rows="5"
+                required
+                placeholder="Write your reflection here..."
+                class="w-full rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-4 text-sm text-slate-900 dark:text-slate-100 focus:border-sky-500 focus:outline-none"
+            >{{ attempt.soft_skill_response }}</textarea>
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                <button type="submit" class="rounded-xl bg-sky-600 hover:bg-sky-500 text-white px-5 py-2.5 text-sm font-bold shadow-md transition-all">
+                    Submit
+                </button>
+            </div>
+        </form>
+    </section>
+    {% endif %}
+
+    {% if exercise.track %}
+    <div class="rounded-3xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Track</p>
+        <div class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            <p>
+                <a href="{% url 'exercises:track_detail' exercise.track.slug %}" class="font-medium text-primary-600 hover:text-primary-700">
+                    {{ exercise.track.title }}
+                </a>
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
+    {{ starter_cells|json_script:"starter-cells-data" }}
+    {{ feature_choices|json_script:"feature-choices-data" }}
+    {{ topic_choices|json_script:"topic-choices-data" }}
+    {{ initial_data|json_script:"initial-data-json" }}
+    {{ allowed_imports|json_script:"allowed-imports-json" }}
+    {{ evaluation_rules|json_script:"evaluation-rules-json" }}
+    {{ data_definition|json_script:"data-definition-json" }}
+    {{ attempt.progress_state|json_script:"progress-state-json" }}
+    {{ task_prompt|default_if_none:""|json_script:"task-prompt-data" }}
+</section>
+
+<script>
+const repeatUrl = "{{ repeat_url }}";
+window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
+(function () {
+    const runUrl = document.querySelector('[data-run-url]').dataset.runUrl;
+    const resetUrl = document.querySelector('[data-reset-url]').dataset.resetUrl;
+    const starterCells = JSON.parse(document.getElementById('starter-cells-data').textContent);
+    const featureChoices = JSON.parse(document.getElementById('feature-choices-data').textContent);
+    const topicChoices = JSON.parse(document.getElementById('topic-choices-data').textContent || '[]');
+    const initialData = JSON.parse(document.getElementById('initial-data-json').textContent);
+    const progressState = JSON.parse(document.getElementById('progress-state-json').textContent);
+    const taskPromptBanner = document.getElementById('task-prompt-banner');
+    const taskPromptText = document.getElementById('task-prompt-text');
+    let currentTaskPrompt = '';
+    try {
+        currentTaskPrompt = JSON.parse(document.getElementById('task-prompt-data').textContent || '""') || '';
+    } catch (error) {
+        currentTaskPrompt = taskPromptText ? (taskPromptText.textContent || '') : '';
+    }
+    const notebookContainer = document.getElementById('notebook-cells');
+    const featureChoiceList = document.getElementById('feature-choice-list');
+    const topicChoiceWrap = document.getElementById('topic-choice-wrap');
+    const topicChoiceSelect = document.getElementById('topic-choice-select');
+    const progressSummary = document.getElementById('progress-summary');
+    const evaluationSummary = document.getElementById('evaluation-summary');
+    const evaluationChecks = document.getElementById('evaluation-checks');
+    const evaluationChecksWrapper = document.getElementById('evaluation-checks-wrapper');
+    const evaluationExplanationContainer = document.getElementById('evaluation-explanation-container');
+    const evaluationStatusIcon = document.getElementById('evaluation-status-icon');
+    const evaluationStatusTitle = document.getElementById('evaluation-status-title');
+    const evaluationExplanationText = document.getElementById('evaluation-explanation-text');
+    const rightPanelLivePlot = document.getElementById('right-panel-live-plot');
+    const resetDataButton = document.getElementById('reset-data-button');
+    const repeatSavedButton = document.getElementById('repeat-saved-button');
+    const repeatSavedButtonEval = document.getElementById('repeat-saved-button-eval');
+    const evaluateButton = document.getElementById('evaluate-button');
+
+    function initExerciseMetrics() {
+        if (!window.AnonymousMetrics) {
+            return;
+        }
+        window.AnonymousMetrics._booted = true;
+        window.AnonymousMetrics.init({
+            path: window.location.pathname,
+            exerciseSlug: window.ANON_METRICS_EXERCISE_SLUG,
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initExerciseMetrics);
+    } else {
+        initExerciseMetrics();
+    }
+
+    // Jupyter Toolbar elements
+    const tbSave = document.getElementById('tb-save');
+    const tbAdd = document.getElementById('tb-add');
+    const tbCut = document.getElementById('tb-cut');
+    const tbCopy = document.getElementById('tb-copy');
+    const tbMoveUp = document.getElementById('tb-move-up');
+    const tbMoveDown = document.getElementById('tb-move-down');
+    const tbRun = document.getElementById('tb-run');
+    const tbInterrupt = document.getElementById('tb-interrupt');
+    const tbRestart = document.getElementById('tb-restart');
+
+    let activeCellIndex = 0;
+    let clipboardCellSource = null;
+    let cellExecutionCounts = {};
+    let globalExecutionCounter = 0;
+
+    // ---------- Server-backed progress restoration ----------
+    let completedCells = [];
+
+    function saveProgress() {
+        return;
+    }
+
+    async function repeatSavedAttempt() {
+        const response = await fetch(repeatUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
+            },
+            body: JSON.stringify({}),
+        });
+
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            progressSummary.textContent = payload.error || 'No saved attempt was found for this user.';
+            return;
+        }
+
+        cells = payload.cells || starterCells.map((cell) => ({source: cell.source || ''}));
+        currentDataState = payload.data_state || structuredClone(initialData);
+        previousResults = [];
+        cellExecutionCounts = {};
+        globalExecutionCounter = 0;
+        renderTopicChoices();
+        renderFeatureChoices();
+        renderTaskPrompt(payload.task_prompt);
+        renderNotebook();
+        renderProgress(payload.progress, payload.evaluation, false);
+        renderOutputs([]);
+    }
+
+    if (repeatSavedButton) repeatSavedButton.addEventListener('click', repeatSavedAttempt);
+    if (repeatSavedButtonEval) repeatSavedButtonEval.addEventListener('click', repeatSavedAttempt);
+    
+    let cells = starterCells.map((cell) => ({source: cell.source || ''}));
+    let currentDataState = JSON.parse(JSON.stringify(initialData));
+    let previousResults = [];
+    let notebookElements = [];
+
+    function renderTaskPrompt(prompt) {
+        currentTaskPrompt = (prompt || '').trim();
+        if (!taskPromptBanner || !taskPromptText) return;
+        if (!currentTaskPrompt) {
+            taskPromptBanner.classList.add('hidden');
+            taskPromptText.textContent = '';
+            return;
+        }
+        taskPromptText.textContent = currentTaskPrompt;
+        taskPromptBanner.classList.remove('hidden');
+    }
+
+    function currentDifficulty() {
+        return currentDataState.difficulty || currentDataState.selected_feature || '';
+    }
+
+    function currentTopic() {
+        return currentDataState.data_field || currentDataState.topic || '';
+    }
+
+    function clearCachedScenarioArtifacts() {
+        delete currentDataState.reference_plot;
+        delete currentDataState.target;
+        delete currentDataState.outcome;
+        delete currentDataState.numeric_columns;
+    }
+
+    async function resetExerciseForScenarioChange(overrides = {}) {
+        cells = starterCells.map((cell) => ({source: cell.source || ''}));
+        previousResults = [];
+        cellExecutionCounts = {};
+        globalExecutionCounter = 0;
+        currentDataState = Object.assign({}, currentDataState, overrides);
+        clearCachedScenarioArtifacts();
+        if (evaluationExplanationContainer) evaluationExplanationContainer.classList.add('hidden');
+        if (evaluationChecksWrapper) evaluationChecksWrapper.classList.add('hidden');
+        renderFeatureChoices();
+        renderTopicChoices();
+        renderNotebook();
+        renderOutputs([]);
+        renderProgress(
+            {passed: false, completed_cells: 0, summary: 'Scenario updated. Notebook reset.'},
+            {passed: false, summary: 'Scenario updated. Notebook reset.', checks: []},
+            false
+        );
+        await runNotebook(false);
+        saveProgress();
+    }
+
+    function renderTopicChoices() {
+        if (!topicChoiceWrap || !topicChoiceSelect) return;
+        if (!topicChoices.length) {
+            topicChoiceWrap.classList.add('hidden');
+            return;
+        }
+        topicChoiceWrap.classList.remove('hidden');
+        const selected = currentTopic() || topicChoices[0].value;
+        if (!currentDataState.data_field && !currentDataState.topic) {
+            currentDataState.data_field = selected;
+            currentDataState.topic = selected;
+        }
+        topicChoiceSelect.innerHTML = '';
+        topicChoices.forEach((choice) => {
+            const option = document.createElement('option');
+            option.value = choice.value;
+            option.textContent = choice.label || choice.value;
+            if (choice.value === selected) option.selected = true;
+            topicChoiceSelect.appendChild(option);
+        });
+        topicChoiceSelect.onchange = () => {
+            const value = topicChoiceSelect.value;
+            const label = topicChoices.find((choice) => choice.value === value)?.label || value;
+            resetExerciseForScenarioChange({
+                data_field: value,
+                topic: value,
+                selected_topic_label: label,
+            });
+            if (window.AnonymousMetrics) {
+                window.AnonymousMetrics.trackFeatureSelect({
+                    value,
+                    label,
+                    kind: 'topic',
+                });
+            }
+        };
+    }
+
+    function renderFeatureChoices() {
+        featureChoiceList.innerHTML = '';
+        if (!featureChoices.length) {
+            featureChoiceList.innerHTML = '<p class="text-sm text-slate-500 dark:text-slate-400">No feature choices are configured for this exercise.</p>';
+            return;
+        }
+
+        const selectedDifficulty = currentDifficulty();
+        featureChoices.forEach((choice, index) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            const value = choice.value ?? choice.label;
+            const isActive = String(value) === String(selectedDifficulty);
+            button.className = isActive
+                ? 'w-full rounded-2xl border-2 border-sky-500 bg-sky-50 dark:bg-sky-950/40 px-4 py-3 text-left text-sm font-medium text-sky-900 dark:text-sky-100 shadow-sm ring-2 ring-sky-200/80 dark:ring-sky-800/60'
+                : 'w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-left text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:border-sky-300 dark:hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-950/30 shadow-sm';
+            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            button.innerHTML = `<span class="block font-semibold ${isActive ? 'text-sky-900 dark:text-sky-100' : 'text-slate-900 dark:text-white'}">${choice.label || `Choice ${index + 1}`}</span>${isActive ? '<span class="mt-1 block text-xs font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-400">Selected</span>' : ''}`;
+            button.addEventListener('click', () => {
+                if (String(value) === String(currentDifficulty())) return;
+                resetExerciseForScenarioChange({
+                    selected_feature: value,
+                    selected_feature_label: choice.label || choice.value,
+                    difficulty: value,
+                });
+                if (window.AnonymousMetrics) {
+                    window.AnonymousMetrics.trackFeatureSelect({
+                        value,
+                        label: choice.label || choice.value,
+                    });
+                }
+            });
+            featureChoiceList.appendChild(button);
+        });
+    }
+
+    function renderNotebook() {
+        notebookContainer.innerHTML = '';
+        notebookElements = [];
+
+        cells.forEach((cell, index) => {
+            const wrapper = document.createElement('article');
+            wrapper.className = `overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 transition-colors ${index === activeCellIndex ? 'ring-2 ring-sky-500/40 dark:ring-sky-500/60' : ''}`;
+            wrapper.dataset.cellIndex = index;
+
+            const execNum = cellExecutionCounts[index] ? cellExecutionCounts[index] : ' ';
+
+            wrapper.innerHTML = `
+                <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-mono font-bold text-blue-600 dark:text-sky-400 select-none">In [${execNum}]:</span>
+                        <span class="text-xs text-slate-400 dark:text-slate-500 font-mono">Cell ${index + 1}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button type="button" class="run-cell-button j-cell-btn text-emerald-700 dark:text-emerald-400 font-semibold" title="Run Cell">▶ Run</button>
+                        <button type="button" class="add-cell-below-button j-cell-btn" title="Add Cell Below">➕</button>
+                        <button type="button" class="move-cell-up-button j-cell-btn" title="Move Cell Up">▲</button>
+                        <button type="button" class="move-cell-down-button j-cell-btn" title="Move Cell Down">▼</button>
+                        <button type="button" class="delete-cell-button j-cell-btn text-rose-600 dark:text-rose-400" title="Delete Cell">🗑</button>
+                    </div>
+                </div>
+                <div class="p-3 space-y-3">
+                    <div class="relative">
+                        <textarea class="cell-editor min-h-[100px] w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 font-mono text-sm text-slate-900 dark:text-slate-100 shadow-inner outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" spellcheck="false"></textarea>
+                    </div>
+                    <div class="cell-output space-y-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 p-3 text-sm text-slate-900 dark:text-slate-100 shadow-sm">
+                        <div class="output-prompt flex items-center gap-2 border-b border-slate-200 dark:border-slate-800/80 pb-1 ${execNum === ' ' ? 'hidden' : ''}">
+                            <span class="text-xs font-mono font-bold text-rose-600 dark:text-rose-400 select-none">Out [${execNum}]:</span>
+                        </div>
+                        <div class="stdout whitespace-pre-wrap font-mono text-xs text-slate-800 dark:text-slate-200"></div>
+                        <div class="html-output dataframe-preview-wrap"></div>
+                        <div class="value font-mono text-xs font-semibold text-blue-700 dark:text-sky-400"></div>
+                        <div class="figures space-y-2"></div>
+                        <div class="error whitespace-pre-wrap font-mono text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 p-2.5 rounded-lg"></div>
+                    </div>
+                </div>
+            `;
+
+            const textarea = wrapper.querySelector('.cell-editor');
+            textarea.value = cell.source;
+
+            textarea.addEventListener('focus', () => {
+                activeCellIndex = index;
+                renderCellSelection();
+            });
+
+            textarea.addEventListener('input', (e) => {
+                cells[index].source = e.target.value;
+                saveProgress();
+            });
+
+            textarea.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    activeCellIndex = index;
+                    runNotebook();
+                }
+            });
+
+            wrapper.querySelector('.run-cell-button').addEventListener('click', () => {
+                activeCellIndex = index;
+                runNotebook();
+            });
+            wrapper.querySelector('.add-cell-below-button').addEventListener('click', () => addCellBelow(index));
+            wrapper.querySelector('.move-cell-up-button').addEventListener('click', () => moveCellUp(index));
+            wrapper.querySelector('.move-cell-down-button').addEventListener('click', () => moveCellDown(index));
+            wrapper.querySelector('.delete-cell-button').addEventListener('click', () => deleteCell(index));
+
+            notebookContainer.appendChild(wrapper);
+            notebookElements.push({wrapper, textarea});
+        });
+    }
+
+    function renderCellSelection() {
+        const children = notebookContainer.children;
+        for (let i = 0; i < children.length; i++) {
+            if (i === activeCellIndex) {
+                children[i].classList.add('ring-2', 'ring-sky-500/40', 'dark:ring-sky-500/60');
+            } else {
+                children[i].classList.remove('ring-2', 'ring-sky-500/40', 'dark:ring-sky-500/60');
+            }
+        }
+    }
+
+    function addCellBelow(index) {
+        cells.splice(index + 1, 0, {source: ''});
+        activeCellIndex = index + 1;
+        renderNotebook();
+    }
+
+    function addCell() {
+        cells.push({source: ''});
+        activeCellIndex = cells.length - 1;
+        renderNotebook();
+    }
+
+    function deleteCell(index) {
+        if (cells.length <= 1) {
+            cells = [{source: ''}];
+            cellExecutionCounts = {};
+        } else {
+            cells.splice(index, 1);
+            if (activeCellIndex >= cells.length) {
+                activeCellIndex = cells.length - 1;
+            }
+        }
+        renderNotebook();
+        saveProgress();
+    }
+
+    function moveCellUp(index) {
+        if (index <= 0) return;
+        const temp = cells[index];
+        cells[index] = cells[index - 1];
+        cells[index - 1] = temp;
+
+        const tempExec = cellExecutionCounts[index];
+        cellExecutionCounts[index] = cellExecutionCounts[index - 1];
+        cellExecutionCounts[index - 1] = tempExec;
+
+        activeCellIndex = index - 1;
+        renderNotebook();
+        saveProgress();
+    }
+
+    function moveCellDown(index) {
+        if (index >= cells.length - 1) return;
+        const temp = cells[index];
+        cells[index] = cells[index + 1];
+        cells[index + 1] = temp;
+
+        const tempExec = cellExecutionCounts[index];
+        cellExecutionCounts[index] = cellExecutionCounts[index + 1];
+        cellExecutionCounts[index + 1] = tempExec;
+
+        activeCellIndex = index + 1;
+        renderNotebook();
+        saveProgress();
+    }
+
+    // Connect Classic Toolbar Buttons
+    if (tbSave) tbSave.addEventListener('click', saveProgress);
+    if (tbAdd) tbAdd.addEventListener('click', () => addCellBelow(activeCellIndex !== null ? activeCellIndex : cells.length - 1));
+    if (tbCut) tbCut.addEventListener('click', () => {
+        if (activeCellIndex >= 0 && activeCellIndex < cells.length) {
+            clipboardCellSource = cells[activeCellIndex].source;
+            deleteCell(activeCellIndex);
+        }
+    });
+    if (tbCopy) tbCopy.addEventListener('click', () => {
+        if (activeCellIndex >= 0 && activeCellIndex < cells.length) {
+            clipboardCellSource = cells[activeCellIndex].source;
+        }
+    });
+    if (tbMoveUp) tbMoveUp.addEventListener('click', () => moveCellUp(activeCellIndex));
+    if (tbMoveDown) tbMoveDown.addEventListener('click', () => moveCellDown(activeCellIndex));
+    if (tbRun) tbRun.addEventListener('click', () => runNotebook());
+    if (tbInterrupt) tbInterrupt.addEventListener('click', () => {
+        progressSummary.textContent = 'Execution interrupted by user.';
+    });
+    if (tbRestart) tbRestart.addEventListener('click', () => resetData());
+
+    function renderOutputs(results) {
+        notebookElements.forEach((entry, index) => {
+            const result = results[index] || {};
+            const stdout = entry.wrapper.querySelector('.stdout');
+            const htmlOutput = entry.wrapper.querySelector('.html-output');
+            const value = entry.wrapper.querySelector('.value');
+            const figures = entry.wrapper.querySelector('.figures');
+            const error = entry.wrapper.querySelector('.error');
+            const promptHeader = entry.wrapper.querySelector('.output-prompt');
+
+            stdout.textContent = result.stdout || '';
+            if (htmlOutput) {
+                htmlOutput.innerHTML = result.html || '';
+            }
+            value.textContent = (!result.html && result.value_repr) ? `Result: ${result.value_repr}` : '';
+            error.textContent = result.error ? result.error : '';
+            figures.innerHTML = '';
+
+            const hasContent = result.stdout || result.html || result.value_repr || result.error || (result.figures && result.figures.length);
+            if (promptHeader) {
+                if (hasContent) {
+                    promptHeader.classList.remove('hidden');
+                } else {
+                    promptHeader.classList.add('hidden');
+                }
+            }
+
+            (result.figures || []).forEach((figure, figureIndex) => {
+                const image = document.createElement('img');
+                image.alt = `Figure ${figureIndex + 1} for cell ${index + 1}`;
+                image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white p-2 shadow-sm';
+                image.src = `data:${figure.mime_type};base64,${figure.base64}`;
+                figures.appendChild(image);
+            });
+        });
+
+        let latestFigure = null;
+        let latestHtml = null;
+        results.forEach((result) => {
+            const figures = result.figures || [];
+            if (figures.length) {
+                latestFigure = figures[figures.length - 1];
+            }
+            if (result.html) {
+                latestHtml = result.html;
+            }
+        });
+
+        if (latestHtml) {
+            rightPanelLivePlot.className = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-left overflow-x-auto';
+            rightPanelLivePlot.innerHTML = latestHtml;
+        } else if (latestFigure) {
+            rightPanelLivePlot.className = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 text-sm text-slate-500 dark:text-slate-400 text-center';
+            rightPanelLivePlot.innerHTML = '';
+            const image = document.createElement('img');
+            image.alt = 'Latest exercise plot';
+            image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white p-2 shadow-sm';
+            image.src = `data:${latestFigure.mime_type};base64,${latestFigure.base64}`;
+            rightPanelLivePlot.appendChild(image);
+        } else if (currentDataState && currentDataState.reference_plot && currentDataState.reference_plot.base64) {
+            rightPanelLivePlot.className = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 text-sm text-slate-500 dark:text-slate-400 text-center';
+            rightPanelLivePlot.innerHTML = '';
+            const image = document.createElement('img');
+            image.alt = 'Outcome reference plot';
+            image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white p-2 shadow-sm';
+            const plot = currentDataState.reference_plot;
+            image.src = `data:${plot.mime_type || 'image/png'};base64,${plot.base64}`;
+            rightPanelLivePlot.appendChild(image);
+        } else {
+            rightPanelLivePlot.className = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 text-sm text-slate-500 dark:text-slate-400 text-center';
+            rightPanelLivePlot.textContent = 'Run the notebook to show the latest plot or dataframe preview here.';
+        }
+    }
+
+    function renderProgress(progress, evaluation, isExplicitEvaluation = false) {
+        progressSummary.textContent = progress?.summary || progressState?.message || 'Notebook ready.';
+        
+        if (isExplicitEvaluation && evaluation) {
+            evaluationExplanationContainer.classList.remove('hidden');
+            evaluationChecksWrapper.classList.remove('hidden');
+            
+            const isPassed = evaluation.passed;
+            if (isPassed) {
+                evaluationExplanationContainer.className = 'rounded-2xl p-4 transition-colors border bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60 text-emerald-900 dark:text-emerald-200';
+                evaluationStatusIcon.textContent = '🎉';
+                evaluationStatusTitle.textContent = 'Evaluation Passed Successfully!';
+                evaluationExplanationText.textContent = evaluation.summary || 'All required checks and assertions passed cleanly. Excellent work!';
+            } else {
+                evaluationExplanationContainer.className = 'rounded-2xl p-4 transition-colors border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200';
+                evaluationStatusIcon.textContent = '⚠️';
+                evaluationStatusTitle.textContent = 'Evaluation Incomplete or Found Issues';
+                evaluationExplanationText.textContent = (evaluation.summary || 'Some evaluation checks failed.') + ' Review the individual check details below to see which requirements need adjustment.';
+            }
+
+            evaluationChecks.innerHTML = '';
+            (evaluation.checks || []).forEach((check) => {
+                const item = document.createElement('li');
+                item.className = `rounded-xl px-3 py-2 flex items-start gap-2 ${check.passed ? 'bg-emerald-100/60 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-900/70' : 'bg-rose-100/60 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-900/70'}`;
+                item.innerHTML = `<span class="font-bold select-none">${check.passed ? '✓' : '✗'}</span> <span>${check.message || 'Check complete.'}</span>`;
+                evaluationChecks.appendChild(item);
+            });
+        }
+    }
+
+    async function runNotebook(showEvaluation = false) {
+        globalExecutionCounter++;
+        cells.forEach((_, idx) => {
+            cellExecutionCounts[idx] = globalExecutionCounter;
+        });
+
+        const response = await fetch(runUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
+            },
+            body: JSON.stringify({
+                cells,
+                data_state: currentDataState,
+                previous_results: previousResults,
+            }),
+        });
+
+        const payload = await response.json();
+        previousResults = payload.cells || [];
+        if (payload.data_state) {
+            currentDataState = payload.data_state;
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, 'task_prompt')) {
+            renderTaskPrompt(payload.task_prompt);
+        }
+        renderNotebook();
+        renderOutputs(payload.cells || []);
+        renderProgress(payload.progress || {summary: payload.evaluation?.summary}, payload.evaluation, showEvaluation);
+        saveProgress();
+        if (window.AnonymousMetrics) {
+            const track = showEvaluation
+                ? window.AnonymousMetrics.trackEvaluate.bind(window.AnonymousMetrics)
+                : window.AnonymousMetrics.trackCodeRun.bind(window.AnonymousMetrics);
+            track({
+                success: Boolean(payload.success),
+                passed: Boolean(payload.evaluation?.passed),
+                cell_count: cells.length,
+                completed_cells: payload.completed_cells || 0,
+            });
+        }
+    }
+
+    async function resetData() {
+        const response = await fetch(resetUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
+            },
+            body: JSON.stringify({}),
+        });
+
+        const payload = await response.json();
+        cells = payload.cells || starterCells.map((cell) => ({source: cell.source || ''}));
+        currentDataState = payload.data_state || structuredClone(initialData);
+        previousResults = [];
+        cellExecutionCounts = {};
+        globalExecutionCounter = 0;
+        evaluationExplanationContainer.classList.add('hidden');
+        evaluationChecksWrapper.classList.add('hidden');
+        renderTopicChoices();
+        renderFeatureChoices();
+        renderTaskPrompt(payload.task_prompt);
+        renderNotebook();
+        renderProgress(payload.progress, payload.evaluation, false);
+        renderOutputs([]);
+        if (window.AnonymousMetrics) {
+            window.AnonymousMetrics.trackReset({ cell_count: cells.length });
+        }
+    }
+
+    if (resetDataButton) resetDataButton.addEventListener('click', resetData);
+    if (evaluateButton) {
+        evaluateButton.addEventListener('click', () => {
+            runNotebook(true);
+        });
+    }
+
+    renderTopicChoices();
+    renderFeatureChoices();
+    renderTaskPrompt(currentTaskPrompt);
+    renderNotebook();
+    renderOutputs([]);
+    renderProgress(progressState, {summary: progressState?.summary || 'Click "Evaluate Exercise" to run tests.', checks: []}, false);
+})();
+</script>
+{% endblock %}

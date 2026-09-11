@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}{{ exercise.title }}{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl mx-auto py-10 px-4">
+    {% if exercise.track %}
+    <p class="mb-4">
+        <a href="{% url 'exercises:track_detail' exercise.track.slug %}" class="text-sm font-semibold text-primary-600 hover:text-primary-700">
+            &larr; {{ exercise.track.title }}
+        </a>
+    </p>
+    {% endif %}
+
+    <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 p-8 text-center">
+        <p class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Coming soon</p>
+        <h1 class="mt-3 text-3xl font-bold text-slate-900 dark:text-white">{{ exercise.title }}</h1>
+        <div class="mt-4 prose prose-slate dark:prose-invert mx-auto text-left">
+            {{ exercise.render_intro_html }}
+        </div>
+    </div>
+</section>
+{% endblock %}

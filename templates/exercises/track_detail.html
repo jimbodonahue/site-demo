@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ track.title }}{% endblock %}
+
+{% block content %}
+<section class="max-w-4xl mx-auto py-6 px-4">
+    <p class="mb-4">
+        <a href="{% url 'exercises:list' %}" class="text-sm font-semibold text-primary-600 hover:text-primary-700">
+            &larr; All tracks
+        </a>
+    </p>
+
+    <div class="mb-8">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <h1 class="text-3xl font-bold text-slate-900 dark:text-white">{{ track.title }}</h1>
+            {% if track.is_placeholder %}
+                <span class="rounded-full bg-amber-50 dark:bg-amber-900/30 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                    Coming soon
+                </span>
+            {% endif %}
+        </div>
+        {% if track.summary %}
+            <p class="mt-3 text-slate-600 dark:text-slate-300">{{ track.summary }}</p>
+        {% endif %}
+    </div>
+
+    {% if track.is_placeholder %}
+        <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 p-8 text-center">
+            <p class="text-slate-600 dark:text-slate-300">
+                This track is a placeholder. Interactive exercises will appear here as they are published.
+            </p>
+        </div>
+    {% else %}
+        <ol class="space-y-4">
+            {% for exercise in track.exercises.all %}
+                <li class="rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Exercise {{ forloop.counter }}</p>
+                            <h2 class="mt-1 text-xl font-semibold text-slate-900 dark:text-white">
+                                <a href="{% url 'exercises:detail' exercise.slug %}" class="hover:text-primary-600">
+                                    {{ exercise.title }}
+                                </a>
+                            </h2>
+                        </div>
+                        {% if exercise.is_placeholder %}
+                            <span class="rounded-full bg-amber-50 dark:bg-amber-900/30 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                                Coming soon
+                            </span>
+                        {% else %}
+                            <a href="{% url 'exercises:detail' exercise.slug %}" class="inline-flex items-center text-sm font-semibold text-primary-600 hover:text-primary-700 whitespace-nowrap">
+                                Start Exercise &rarr;
+                            </a>
+                        {% endif %}
+                    </div>
+                </li>
+            {% empty %}
+                <li class="text-slate-500">No published exercises in this track yet.</li>
+            {% endfor %}
+        </ol>
+    {% endif %}
+</section>
+{% endblock %}

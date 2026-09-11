@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Learning platform preview">
+  <rect width="1200" height="630" fill="#f8fafc"/>
+  <rect x="72" y="72" width="1056" height="486" rx="36" fill="#0f172a"/>
+  <text x="120" y="220" fill="#f8fafc" font-family="Arial, sans-serif" font-size="64" font-weight="700">Learning Platform</text>
+  <text x="120" y="300" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="28">Three guided courses, structured lessons, and practice</text>
+  <circle cx="930" cy="235" r="110" fill="#38bdf8" opacity="0.9"/>
+  <circle cx="1010" cy="335" r="70" fill="#f59e0b" opacity="0.9"/>
+</svg>

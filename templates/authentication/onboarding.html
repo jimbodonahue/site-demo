@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Choose your data field{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white rounded-xl shadow-md p-8">
+    <h1 class="text-3xl font-bold mb-2">Choose your data focus</h1>
+    <p class="text-gray-600 mb-6">
+        This is your first login. Pick a field and then choose one of the parquet datasets for that field.
+    </p>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="bg-red-50 border border-red-200 text-red-700 rounded p-3">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+        {% endif %}
+
+        <div>
+            <label for="id_data_field" class="block text-sm font-medium text-gray-700 mb-1">Field</label>
+            {{ form.data_field }}
+            {% if form.data_field.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.data_field.errors|join:', ' }}</p>
+            {% endif %}
+        </div>
+
+        <div>
+            <label for="id_dataset_file" class="block text-sm font-medium text-gray-700 mb-1">Dataset file</label>
+            {{ form.dataset_file }}
+            {% if form.dataset_file.errors %}
+                <p class="text-sm text-red-600 mt-1">{{ form.dataset_file.errors|join:', ' }}</p>
+            {% endif %}
+        </div>
+
+        <button type="submit" class="w-full py-3 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700">
+            Save my exercise preferences
+        </button>
+    </form>
+</div>
+
+<script>
+const datasetsByField = {{ dataset_map|safe }};
+const fieldSelect = document.getElementById('id_data_field');
+const datasetSelect = document.getElementById('id_dataset_file');
+
+function updateDatasetChoices() {
+    const selectedField = fieldSelect.value;
+    const options = datasetsByField[selectedField] || [];
+    const currentValue = datasetSelect.value;
+
+    datasetSelect.innerHTML = '';
+    if (!options.length) {
+        const fallback = document.createElement('option');
+        fallback.value = '';
+        fallback.textContent = 'No datasets available';
+        datasetSelect.appendChild(fallback);
+        return;
+    }
+
+    options.forEach((name) => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        if (currentValue === name) {
+            option.selected = true;
+        }
+        datasetSelect.appendChild(option);
+    });
+
+    if (!options.includes(currentValue) && options.length) {
+        datasetSelect.value = options[0];
+    }
+}
+
+fieldSelect.addEventListener('change', updateDatasetChoices);
+updateDatasetChoices();
+</script>
+{% endblock %}

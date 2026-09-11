@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Impressum{% endblock %}
+
+{% block content %}
+<section class="max-w-4xl mx-auto py-8 px-4">
+    <div class="bg-white dark:bg-slate-800 rounded-3xl p-8 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white mb-6">Impressum</h1>
+
+        <div class="prose dark:prose-invert text-slate-600 dark:text-slate-300 space-y-4">
+            <p><strong>Anbieter:</strong> Jims Data Gym</p>
+            <p><strong>Kontakt:</strong> hello@jimsdatagym.example</p>
+            <p><strong>Adresse:</strong> [Straße, Hausnummer], [PLZ, Ort], Deutschland</p>
+            <p><strong>Vertreten durch:</strong> [Name der verantwortlichen Person oder Vertretung]</p>
+            <p><strong>USt-IdNr.:</strong> [falls zutreffend]</p>
+            <p><strong>Verantwortlich für den Inhalt:</strong> [Name und Kontaktdaten gemäß deutschem Recht]</p>
+
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">Angaben gemäß § 5 TMG</h2>
+            <p>Der Anbieter dieser Website ist für Inhalt und Betrieb der Seite verantwortlich. Diese rechtlichen Angaben werden im Einklang mit deutschem Recht und dem Telemediengesetz (TMG) bereitgestellt.</p>
+
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-6">Kontakt und Beschwerden</h2>
+            <p>Wenn Sie Fragen zu dieser Website oder den rechtlichen Angaben haben, kontaktieren Sie uns bitte per E-Mail unter hello@jimsdatagym.example.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
