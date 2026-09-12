@@ -17,12 +17,12 @@ import sys
 
 from dotenv import load_dotenv
 
-# take environment variables from .env.
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
+
+# Load .env from the project root (works on PythonAnywhere even if CWD differs).
+load_dotenv(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
@@ -32,20 +32,18 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY") or "fallback-secret-key"
 SERVER = os.getenv("SERVER", "development")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-if SERVER == "development":
-    DEBUG = True
-else:
-    DEBUG = False
+DEBUG = SERVER == "development"
 
 
 def _csv_env(name, default):
     return [value.strip() for value in os.getenv(name, default).split(",") if value.strip()]
 
 
-if DEBUG:
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
-else:
-    ALLOWED_HOSTS = _csv_env("ALLOWED_HOSTS", "localhost")
+# Always honor ALLOWED_HOSTS from the environment when set (needed on PythonAnywhere).
+ALLOWED_HOSTS = _csv_env(
+    "ALLOWED_HOSTS",
+    "localhost,127.0.0.1,[::1]" if DEBUG else "localhost",
+)
 
 # Application definition
 INSTALLED_APPS = [
@@ -103,8 +101,10 @@ WSGI_APPLICATION = "project_core.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
+# DB_ENGINE: sqlite (default, good for PythonAnywhere free) | postgresql | mysql
+DB_ENGINE = os.getenv("DB_ENGINE", "sqlite").lower()
 
-if SERVER == "production":
+if DB_ENGINE == "postgresql":
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -112,20 +112,26 @@ if SERVER == "production":
             "USER": os.getenv("DB_USER"),
             "PASSWORD": os.getenv("DB_PWD"),
             "HOST": os.getenv("DB_HOST"),
-            "PORT": "5432",
-            # in case of pooler, use port 6543 and these settings
-            # "PORT": "6543",
-            # "CONN_MAX_AGE": 600,
-            # "OPTIONS": {
-            #     "connect_timeout": 10,
-            # },
+            "PORT": os.getenv("DB_PORT", "5432"),
+        }
+    }
+elif DB_ENGINE == "mysql":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": os.getenv("DB_NAME"),
+            "USER": os.getenv("DB_USER"),
+            "PASSWORD": os.getenv("DB_PWD"),
+            "HOST": os.getenv("DB_HOST", "localhost"),
+            "PORT": os.getenv("DB_PORT", "3306"),
+            "OPTIONS": {"charset": "utf8mb4"},
         }
     }
 else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": "db.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 
@@ -174,8 +180,9 @@ if SERVER == "production":
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",
         },
+        # Compressed (non-manifest) is more reliable for first deploy / PythonAnywhere.
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
         },
     }
 else:
