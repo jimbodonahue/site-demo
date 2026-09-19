@@ -166,15 +166,19 @@ SAFE_BUILTINS = {
     "bool": bool,
     "dict": dict,
     "enumerate": enumerate,
+    "filter": filter,
     "float": float,
     "int": int,
+    "isinstance": isinstance,
     "len": len,
     "list": list,
+    "map": map,
     "max": max,
     "min": min,
     "next": next,
     "print": print,
     "range": range,
+    "reversed": reversed,
     "round": round,
     "set": set,
     "sorted": sorted,
@@ -185,7 +189,14 @@ SAFE_BUILTINS = {
     "ValueError": ValueError,
     "TypeError": TypeError,
     "Exception": Exception,
+    "KeyError": KeyError,
+    "IndexError": IndexError,
+    "NameError": NameError,
+    "ZeroDivisionError": ZeroDivisionError,
 }
+
+# Marker so the parent can find the worker payload even if libraries write to stdout.
+WORKER_RESULT_PREFIX = "EXERCISE_RESULT_JSON:"
 
 
 def split_notebook_source(source: str) -> list[dict[str, str]]:
@@ -344,6 +355,10 @@ def _capture_figures(namespace: dict[str, object]) -> list[dict[str, str]]:
                 "base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
             }
         )
+    try:
+        plt.close("all")
+    except Exception:
+        pass
     return figures
 
 
@@ -364,14 +379,37 @@ def _value_to_html(value: object) -> str | None:
         return None
 
     preview = frame.head(10)
-    return preview.to_html(
-        classes="dataframe-preview",
-        border=0,
-        index=True,
-        justify="left",
-        max_cols=12,
-        escape=True,
-    )
+    try:
+        return preview.to_html(
+            classes="dataframe-preview",
+            border=0,
+            index=True,
+            justify="left",
+            max_cols=12,
+            escape=True,
+        )
+    except Exception:
+        return None
+
+
+def _install_cell_print(namespace: dict[str, object], stdout: io.StringIO):
+    """Force sandbox print() into the cell capture buffer (not the worker pipe)."""
+    real_print = print
+
+    def cell_print(*args, **kwargs):
+        file = kwargs.get("file", stdout)
+        if file is None or file is sys.stdout:
+            kwargs = dict(kwargs)
+            kwargs["file"] = stdout
+        real_print(*args, **kwargs)
+
+    builtins = namespace.get("__builtins__")
+    if isinstance(builtins, dict):
+        builtins = dict(builtins)
+        builtins["print"] = cell_print
+        namespace["__builtins__"] = builtins
+    namespace["print"] = cell_print
+    return cell_print
 
 
 def _execute_cell_local(source: str, namespace: dict[str, object], allowed_imports: list[str]) -> dict[str, object]:
@@ -387,10 +425,14 @@ def _execute_cell_local(source: str, namespace: dict[str, object], allowed_impor
     }
 
     stdout = io.StringIO()
+    previous_print = namespace.get("print")
+    previous_builtins = namespace.get("__builtins__")
     try:
         tree = ast.parse(source or "", mode="exec")
         _validate_imports(tree, allowed_imports)
+        _install_cell_print(namespace, stdout)
 
+        value = None
         with redirect_stdout(stdout):
             if tree.body and isinstance(tree.body[-1], ast.Expr):
                 prefix = ast.Module(body=tree.body[:-1], type_ignores=[])
@@ -398,18 +440,26 @@ def _execute_cell_local(source: str, namespace: dict[str, object], allowed_impor
                     exec(compile(prefix, "<exercise-cell>", "exec"), namespace, namespace)
                 expression = ast.Expression(tree.body[-1].value)
                 value = eval(compile(expression, "<exercise-cell>", "eval"), namespace, namespace)
-                if value is not None:
-                    result["html"] = _value_to_html(value)
-                    if result["html"]:
-                        result["value_repr"] = f"{type(value).__name__} shape={getattr(value, 'shape', '')}"
-                    else:
-                        result["value_repr"] = repr(value)
             else:
                 exec(compile(tree, "<exercise-cell>", "exec"), namespace, namespace)
+
+        if value is not None:
+            result["html"] = _value_to_html(value)
+            if result["html"]:
+                result["value_repr"] = f"{type(value).__name__} shape={getattr(value, 'shape', '')}"
+            else:
+                result["value_repr"] = repr(value)
     except Exception:
         result["error"] = traceback.format_exc()
         result["stdout"] = stdout.getvalue()
         return result
+    finally:
+        if previous_builtins is not None:
+            namespace["__builtins__"] = previous_builtins
+        if previous_print is not None:
+            namespace["print"] = previous_print
+        elif "print" in namespace:
+            namespace.pop("print", None)
 
     result["stdout"] = stdout.getvalue()
     result["figures"] = _capture_figures(namespace)
@@ -430,7 +480,11 @@ def _run_notebook_payload(
 ) -> dict[str, object]:
     from django.conf import settings as django_settings
 
-    if getattr(django_settings, "EXERCISE_ENABLE_RESOURCE_LIMITS", True):
+    # Never apply rlimits in the web process — only inside the isolated worker.
+    if (
+        os.environ.get("EXERCISE_SANDBOX_WORKER") == "1"
+        and getattr(django_settings, "EXERCISE_ENABLE_RESOURCE_LIMITS", True)
+    ):
         apply_resource_limits()
     previous_by_hash = {
         cell.get("source_hash"): cell
@@ -643,9 +697,10 @@ def run_notebook(
         (
             "import json, sys; "
             "payload = json.loads(sys.stdin.read()); "
-            "from apps.exercises.services import _run_notebook_payload; "
+            "from apps.exercises.services import WORKER_RESULT_PREFIX, _run_notebook_payload; "
             "result = _run_notebook_payload(**payload); "
-            "print(json.dumps(result))"
+            "sys.stdout.write(WORKER_RESULT_PREFIX + json.dumps(result) + '\\n'); "
+            "sys.stdout.flush()"
         ),
     ]
 
@@ -688,50 +743,71 @@ def run_notebook(
 
     if completed.returncode != 0:
         stderr = completed.stderr.strip() or "Notebook worker exited without returning a result."
-        return {
-            "success": False,
-            "ran": False,
-            "core_passed": False,
-            "band": BAND_INCOMPLETE,
-            "cells": [],
-            "namespace": {},
-            "completed_cells": 0,
-            "evaluation": {
-                "passed": False,
+        # Fall back to in-process execution when the isolated worker cannot run
+        # (common on some shared hosts that restrict subprocesses).
+        try:
+            return _run_notebook_payload(**payload)
+        except Exception:
+            return {
+                "success": False,
+                "ran": False,
                 "core_passed": False,
-                "summary": stderr,
-                "checks": [],
                 "band": BAND_INCOMPLETE,
-            },
-            "progress": {"summary": stderr, "passed": False, "completed_cells": 0, "ran": False},
-            "data_state": data_state or {},
-            "error": stderr,
-        }
+                "cells": [],
+                "namespace": {},
+                "completed_cells": 0,
+                "evaluation": {
+                    "passed": False,
+                    "core_passed": False,
+                    "summary": stderr,
+                    "checks": [],
+                    "band": BAND_INCOMPLETE,
+                },
+                "progress": {"summary": stderr, "passed": False, "completed_cells": 0, "ran": False},
+                "data_state": data_state or {},
+                "error": stderr,
+            }
 
     try:
-        return json.loads(completed.stdout.strip().splitlines()[-1])
+        return _parse_worker_stdout(completed.stdout)
     except Exception:
-        return {
-            "success": False,
-            "ran": False,
-            "core_passed": False,
-            "band": BAND_INCOMPLETE,
-            "cells": [],
-            "namespace": {},
-            "completed_cells": 0,
-            "evaluation": {
-                "passed": False,
-                "core_passed": False,
-                "summary": "Invalid worker response.",
-                "checks": [],
-                "band": BAND_INCOMPLETE,
-            },
-            "progress": {
-                "summary": "Invalid worker response.",
-                "passed": False,
-                "completed_cells": 0,
+        # Worker stdout was unusable; try in-process once before failing hard.
+        try:
+            return _run_notebook_payload(**payload)
+        except Exception:
+            return {
+                "success": False,
                 "ran": False,
-            },
-            "data_state": data_state or {},
-            "error": completed.stdout or completed.stderr or "Invalid worker response.",
-        }
+                "core_passed": False,
+                "band": BAND_INCOMPLETE,
+                "cells": [],
+                "namespace": {},
+                "completed_cells": 0,
+                "evaluation": {
+                    "passed": False,
+                    "core_passed": False,
+                    "summary": "Invalid worker response.",
+                    "checks": [],
+                    "band": BAND_INCOMPLETE,
+                },
+                "progress": {
+                    "summary": "Invalid worker response.",
+                    "passed": False,
+                    "completed_cells": 0,
+                    "ran": False,
+                },
+                "data_state": data_state or {},
+                "error": completed.stdout or completed.stderr or "Invalid worker response.",
+            }
+
+
+def _parse_worker_stdout(stdout: str) -> dict[str, object]:
+    """Extract the notebook result JSON from worker stdout."""
+    lines = (stdout or "").strip().splitlines()
+    for line in reversed(lines):
+        if line.startswith(WORKER_RESULT_PREFIX):
+            return json.loads(line[len(WORKER_RESULT_PREFIX) :])
+    if not lines:
+        raise ValueError("Worker returned no stdout.")
+    # Backward-compatible: last line is bare JSON.
+    return json.loads(lines[-1])

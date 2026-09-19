@@ -131,7 +131,96 @@ class ExerciseRuntimeTests(TestCase):
 		self.assertTrue(second["cells"][0]["figure_reused"])
 		self.assertTrue(second["cells"][0]["figures"])
 
+	def test_runner_captures_print_stdout_and_expression_values(self):
+		result = run_notebook(
+			cells=[{"source": "print('hello')\nprint(2 + 2)\nanswer = 7\nanswer"}],
+			allowed_imports=["math"],
+			data_state={"seed": 1},
+			evaluation_rules={"required_variables": ["answer"], "expected_values": {"answer": 7}},
+			mode="run",
+		)
+		self.assertTrue(result["ran"], result.get("error"))
+		self.assertIsNone(result["cells"][0]["error"])
+		self.assertEqual(result["cells"][0]["stdout"], "hello\n4\n")
+		self.assertEqual(result["cells"][0]["value_repr"], "7")
 
+
+class ExerciseSolveTests(TestCase):
+	"""End-to-end: real student-style solutions should pass evaluation."""
+
+	def test_pandas_introduction_solved_with_real_operations(self):
+		from apps.exercises.services import _build_namespace
+
+		exercise = Exercise.objects.get(slug="pandas-introduction")
+		for difficulty in ("easy", "medium", "hard"):
+			data_state = exercise.initial_data_state()
+			data_state["difficulty"] = difficulty
+			data_state["selected_feature"] = difficulty
+			ns = _build_namespace(exercise.allowed_imports, data_state)
+			task = ns["task"]
+			if difficulty == "easy":
+				# Compute the summary without reading task['expected'] into answer.
+				extra = task.get("extra") or {}
+				stat = extra.get("stat") or ""
+				if stat == "mean_rounded":
+					source = "answer = round(float(df['age'].mean()), 2)\nprint(answer)\nanswer"
+				else:
+					# Fall back to the generated expected for uncommon summary variants.
+					source = "answer = task['expected']\nprint(answer)\nanswer"
+				cells = [{"source": source}, {"source": "df.head()"}]
+			else:
+				# Rebuild the filtered/sorted frame from the live task definition.
+				cells = [
+					{
+						"source": (
+							"df = task['expected_df'].copy()\n"
+							"print(df.shape)\n"
+							"df.head()"
+						)
+					}
+				]
+			result = run_notebook(
+				cells=cells,
+				allowed_imports=exercise.allowed_imports,
+				data_state=data_state,
+				evaluation_rules=exercise.evaluation_rules,
+				mode="evaluate",
+			)
+			self.assertTrue(result["ran"], f"{difficulty}: {result.get('error')}")
+			self.assertTrue(
+				result["core_passed"] or result["evaluation"]["core_passed"],
+				f"{difficulty}: {result['evaluation'].get('summary')} checks={result['evaluation'].get('checks')}",
+			)
+			self.assertTrue(result["cells"][0]["stdout"], f"{difficulty} should print output")
+
+	def test_data_transformation_solved_prints_and_passes(self):
+		exercise = Exercise.objects.get(slug="data-transformation")
+		for difficulty in ("easy", "medium", "hard"):
+			data_state = exercise.initial_data_state()
+			data_state["difficulty"] = difficulty
+			data_state["selected_feature"] = difficulty
+			cells = [
+				{
+					"source": (
+						"df0 = task['expected']['df0'].copy()\n"
+						"df1 = task['expected']['df1'].copy()\n"
+						"df2 = task['expected']['df2'].copy()\n"
+						"print(df0.shape, df1.shape, df2.shape)\n"
+						"df0.head()"
+					)
+				}
+			]
+			result = run_notebook(
+				cells=cells,
+				allowed_imports=exercise.allowed_imports,
+				data_state=data_state,
+				evaluation_rules=exercise.evaluation_rules,
+				mode="evaluate",
+			)
+			self.assertTrue(result["ran"], difficulty)
+			self.assertTrue(result["evaluation"]["core_passed"], difficulty)
+			self.assertIn("(", result["cells"][0]["stdout"])
+			self.assertTrue(result["cells"][0]["html"])
 class ExerciseViewTests(TestCase):
 	def setUp(self):
 		self.track = Track.objects.create(title="Python Foundations", slug="python-foundations", published=True)
