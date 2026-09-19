@@ -122,12 +122,54 @@ class Exercise(models.Model):
 		return mark_safe(sanitized)
 
 	def render_graphic_html(self):
-		if self.graphic_markup:
-			return mark_safe(self.graphic_markup)
-		return mark_safe(
+		placeholder = (
 			"<div class='rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500'>"
 			"Exercise graphic placeholder</div>"
 		)
+		raw = self.graphic_markup or placeholder
+		sanitized = bleach.clean(
+			raw,
+			tags=[
+				"p",
+				"strong",
+				"b",
+				"em",
+				"i",
+				"ul",
+				"ol",
+				"li",
+				"blockquote",
+				"code",
+				"pre",
+				"div",
+				"span",
+				"table",
+				"thead",
+				"tbody",
+				"tr",
+				"th",
+				"td",
+				"a",
+				"hr",
+				"br",
+				"h1",
+				"h2",
+				"h3",
+				"h4",
+				"img",
+			],
+			attributes={
+				"a": ["href", "title"],
+				"code": ["class"],
+				"div": ["class"],
+				"span": ["class"],
+				"p": ["class"],
+				"img": ["src", "alt", "class", "width", "height"],
+			},
+			protocols=["http", "https", "mailto"],
+			strip=True,
+		)
+		return mark_safe(sanitized)
 
 	def starter_cells(self):
 		"""Student notebooks always start with two empty cells and no output."""

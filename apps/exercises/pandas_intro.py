@@ -533,45 +533,16 @@ def generate_pandas_intro_task(
 
 def scalars_match(actual: Any, expected: Any) -> bool:
 	"""Compare a student summary answer to the expected scalar."""
-	if actual is None:
-		return False
-	if isinstance(expected, (bool, np.bool_)):
-		return bool(actual) is bool(expected)
-	if isinstance(expected, (int, np.integer)):
-		try:
-			return int(actual) == int(expected)
-		except (TypeError, ValueError):
-			return False
-	if isinstance(expected, (float, np.floating)):
-		try:
-			return abs(float(actual) - float(expected)) < 1e-6
-		except (TypeError, ValueError):
-			return False
-	return actual == expected
+	from apps.exercises.grading import values_equal
+
+	return values_equal(actual, expected, atol=1e-6, rtol=1e-6)
 
 
 def dataframes_match(result_df: Any, expected_df: Any) -> bool:
 	"""Compare student output to the expected dataframe with light normalization."""
-	if not isinstance(result_df, pd.DataFrame) or not isinstance(expected_df, pd.DataFrame):
-		return False
+	from apps.exercises.grading import frame_equal
 
-	left = result_df.copy().reset_index(drop=True)
-	right = expected_df.copy().reset_index(drop=True)
-
-	if list(left.columns) != list(right.columns):
-		if set(left.columns) == set(right.columns):
-			left = left.loc[:, right.columns]
-		else:
-			return False
-
-	if len(left) != len(right):
-		return False
-
-	try:
-		compared = left.reset_index(drop=True).compare(right.reset_index(drop=True))
-		return compared.empty
-	except Exception:
-		return left.equals(right)
+	return frame_equal(result_df, expected_df, ignore_index=True, ignore_column_order=True)
 
 
 def pandas_intro_task_passes(task: dict[str, Any], df: Any = None, answer: Any = None) -> bool:

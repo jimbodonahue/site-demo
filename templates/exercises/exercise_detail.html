@@ -4,8 +4,11 @@
 
 {% block extra_css %}
 <style>
-    .exercise-shell textarea {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    .exercise-shell textarea,
+    .exercise-shell pre,
+    .exercise-shell code,
+    .exercise-shell .font-mono {
+        font-family: "Bitstream Vera Sans Mono", ui-monospace, monospace;
     }
 
     .exercise-shell pre {
@@ -140,6 +143,14 @@
 {% block content %}
 <section class="exercise-shell space-y-6" data-run-url="{{ run_url }}" data-reset-url="{{ reset_url }}">
     <form class="hidden">{% csrf_token %}</form>
+
+    {% if not user.is_authenticated %}
+    <div class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100" role="status">
+        <span class="font-semibold">Not signed in.</span>
+        <a href="{% url 'login' %}" class="font-semibold underline underline-offset-2 hover:text-amber-700 dark:hover:text-white">Log in</a>
+        to keep progress tied to your account.
+    </div>
+    {% endif %}
     
     <!-- Header Banner -->
     <div class="flex flex-col gap-4 rounded-3xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 lg:flex-row lg:items-start lg:justify-between transition-colors">
@@ -206,9 +217,22 @@
                     </div>
                 </div>
 
-                <div id="task-prompt-banner" class="{% if not task_prompt %}hidden {% endif %}rounded-2xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 px-4 py-3">
-                    <p class="text-xs font-semibold uppercase tracking-[0.15em] text-sky-700 dark:text-sky-300">Task</p>
-                    <p id="task-prompt-text" class="mt-2 text-sm leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap">{{ task_prompt }}</p>
+                <div id="task-prompt-banner" class="{% if not task_prompt %}hidden {% endif %}rounded-2xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/40 px-4 py-3 space-y-3">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-semibold uppercase tracking-[0.15em] text-sky-700 dark:text-sky-300">Task</p>
+                            <p id="task-prompt-text" class="mt-2 text-sm leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap">{{ task_prompt }}</p>
+                        </div>
+                        <button type="button" id="spotter-button" class="shrink-0 rounded-full border border-sky-300 dark:border-sky-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition" title="Show a few general tool reminders for this difficulty">
+                            Spotter
+                        </button>
+                    </div>
+                    <div id="spotter-panel" class="hidden rounded-xl border border-sky-200 dark:border-sky-800 bg-white/80 dark:bg-slate-900/70 px-3 py-3">
+                        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-sky-700 dark:text-sky-300">Spotter</p>
+                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">General patterns for this difficulty — not a full answer.</p>
+                        <ul id="spotter-list" class="mt-2 space-y-1.5 font-mono text-xs text-slate-800 dark:text-slate-100"></ul>
+                        <p id="spotter-empty" class="mt-2 hidden text-xs text-slate-500">No spotter tips for this exercise yet.</p>
+                    </div>
                 </div>
 
                 <!-- Classic Jupyter Notebook Toolbar -->
@@ -280,16 +304,51 @@
                     </div>
                 </div>
 
+                <!-- Soft feedback after Run -->
+                <div id="soft-feedback-panel" class="hidden rounded-2xl border border-sky-200 dark:border-sky-900/50 bg-sky-50/70 dark:bg-sky-950/30 p-4 space-y-2">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-300">Live feedback</p>
+                    <p id="soft-feedback-text" class="text-sm text-sky-950 dark:text-sky-100"></p>
+                    <ul id="soft-feedback-actions" class="space-y-1 text-sm text-sky-900 dark:text-sky-200 list-disc list-inside"></ul>
+                </div>
+
+                <!-- Rubric scorecard -->
+                <div id="rubric-scorecard" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3" data-rubric-section="core">
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">Core</p>
+                        <p class="rubric-count mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3" data-rubric-section="approach">
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">Approach</p>
+                        <p class="rubric-count mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3" data-rubric-section="bonus">
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">Bonus</p>
+                        <p class="rubric-count mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3" data-rubric-section="reflection">
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">Reflection</p>
+                        <p class="rubric-count mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+                    </div>
+                </div>
+
                 <!-- Progress Summary -->
                 <div class="rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4">
                     <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Progress Status</p>
-                    <div id="progress-summary" class="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">Click "Evaluate Exercise" to run tests and check your progress.</div>
+                    <div id="progress-summary" class="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">Run for live feedback, then Evaluate Exercise for credit.</div>
                 </div>
 
                 <!-- Individual Checks List -->
                 <div id="evaluation-checks-wrapper" class="hidden rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-2">Test Checks Results</p>
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Rubric details</p>
+                        <button type="button" id="reveal-hint-button" class="hidden text-xs font-semibold text-sky-700 dark:text-sky-300 hover:underline">Show hint</button>
+                    </div>
                     <ul id="evaluation-checks" class="space-y-2 text-sm"></ul>
+                </div>
+
+                <div id="plotting-bonus-panel" class="hidden rounded-2xl border border-violet-200 dark:border-violet-900/60 bg-violet-50/70 dark:bg-violet-950/30 p-4 space-y-1">
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-300">Plotting bonus</p>
+                    <p id="plotting-bonus-text" class="text-sm text-violet-950 dark:text-violet-100"></p>
                 </div>
             </section>
         </div>
@@ -301,7 +360,7 @@
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Soft Skill</p>
             <h2 class="text-xl font-bold text-slate-900 dark:text-white">Reflection</h2>
         </div>
-        <p class="text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-line">{{ exercise.soft_skill_prompt }}</p>
+        <p class="soft-skill-prompt text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-line">{{ exercise.soft_skill_prompt }}</p>
         <form method="post" action="{{ soft_skill_url }}" class="space-y-4" id="soft-skill-form">
             {% csrf_token %}
             <label for="soft_skill_response" class="sr-only">Your soft skill response</label>
@@ -344,6 +403,7 @@
     {{ data_definition|json_script:"data-definition-json" }}
     {{ attempt.progress_state|json_script:"progress-state-json" }}
     {{ task_prompt|default_if_none:""|json_script:"task-prompt-data" }}
+    {{ spotter_tips|json_script:"spotter-tips-data" }}
 </section>
 
 <script>
@@ -359,6 +419,16 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
     const progressState = JSON.parse(document.getElementById('progress-state-json').textContent);
     const taskPromptBanner = document.getElementById('task-prompt-banner');
     const taskPromptText = document.getElementById('task-prompt-text');
+    const spotterButton = document.getElementById('spotter-button');
+    const spotterPanel = document.getElementById('spotter-panel');
+    const spotterList = document.getElementById('spotter-list');
+    const spotterEmpty = document.getElementById('spotter-empty');
+    let spotterTipsByLevel = {};
+    try {
+        spotterTipsByLevel = JSON.parse(document.getElementById('spotter-tips-data').textContent || '{}') || {};
+    } catch (error) {
+        spotterTipsByLevel = {};
+    }
     let currentTaskPrompt = '';
     try {
         currentTaskPrompt = JSON.parse(document.getElementById('task-prompt-data').textContent || '""') || '';
@@ -377,6 +447,15 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
     const evaluationStatusIcon = document.getElementById('evaluation-status-icon');
     const evaluationStatusTitle = document.getElementById('evaluation-status-title');
     const evaluationExplanationText = document.getElementById('evaluation-explanation-text');
+    const plottingBonusPanel = document.getElementById('plotting-bonus-panel');
+    const plottingBonusText = document.getElementById('plotting-bonus-text');
+    const softFeedbackPanel = document.getElementById('soft-feedback-panel');
+    const softFeedbackText = document.getElementById('soft-feedback-text');
+    const softFeedbackActions = document.getElementById('soft-feedback-actions');
+    const rubricScorecard = document.getElementById('rubric-scorecard');
+    const revealHintButton = document.getElementById('reveal-hint-button');
+    let lastEvaluation = null;
+    let hintsRevealed = false;
     const rightPanelLivePlot = document.getElementById('right-panel-live-plot');
     const resetDataButton = document.getElementById('reset-data-button');
     const repeatSavedButton = document.getElementById('repeat-saved-button');
@@ -465,10 +544,38 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         if (!currentTaskPrompt) {
             taskPromptBanner.classList.add('hidden');
             taskPromptText.textContent = '';
+            if (spotterPanel) spotterPanel.classList.add('hidden');
             return;
         }
         taskPromptText.textContent = currentTaskPrompt;
         taskPromptBanner.classList.remove('hidden');
+        renderSpotterTips();
+    }
+
+    function normalizeDifficulty(value) {
+        const key = String(value || 'easy').toLowerCase();
+        return ['easy', 'medium', 'hard'].includes(key) ? key : 'easy';
+    }
+
+    function renderSpotterTips() {
+        if (!spotterList) return;
+        const tips = spotterTipsByLevel[normalizeDifficulty(currentDifficulty())] || [];
+        spotterList.innerHTML = '';
+        tips.forEach((tip) => {
+            const item = document.createElement('li');
+            item.className = 'rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5';
+            item.textContent = tip;
+            spotterList.appendChild(item);
+        });
+        if (spotterEmpty) {
+            spotterEmpty.classList.toggle('hidden', tips.length > 0);
+        }
+    }
+
+    function toggleSpotterPanel() {
+        if (!spotterPanel) return;
+        renderSpotterTips();
+        spotterPanel.classList.toggle('hidden');
     }
 
     function currentDifficulty() {
@@ -481,6 +588,7 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
 
     function clearCachedScenarioArtifacts() {
         delete currentDataState.reference_plot;
+        delete currentDataState.dataset_preview_html;
         delete currentDataState.target;
         delete currentDataState.outcome;
         delete currentDataState.numeric_columns;
@@ -497,6 +605,7 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         if (evaluationChecksWrapper) evaluationChecksWrapper.classList.add('hidden');
         renderFeatureChoices();
         renderTopicChoices();
+        renderSpotterTips();
         renderNotebook();
         renderOutputs([]);
         renderProgress(
@@ -816,39 +925,144 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
             const plot = currentDataState.reference_plot;
             image.src = `data:${plot.mime_type || 'image/png'};base64,${plot.base64}`;
             rightPanelLivePlot.appendChild(image);
+        } else if (currentDataState && currentDataState.dataset_preview_html) {
+            rightPanelLivePlot.className = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-left overflow-x-auto';
+            rightPanelLivePlot.innerHTML = `
+                <p class="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">Dataset preview (df.head)</p>
+                <div class="dataframe-preview-wrap">${currentDataState.dataset_preview_html}</div>
+            `;
         } else {
             rightPanelLivePlot.className = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 text-sm text-slate-500 dark:text-slate-400 text-center';
             rightPanelLivePlot.textContent = 'Run the notebook to show the latest plot or dataframe preview here.';
         }
     }
 
+    function renderRubric(rubric) {
+        if (!rubricScorecard) return;
+        if (!rubric) {
+            rubricScorecard.classList.add('hidden');
+            return;
+        }
+        rubricScorecard.classList.remove('hidden');
+        ['core', 'approach', 'bonus', 'reflection'].forEach((section) => {
+            const card = rubricScorecard.querySelector(`[data-rubric-section="${section}"]`);
+            if (!card) return;
+            const bucket = rubric[section] || {passed: 0, total: 0};
+            const countEl = card.querySelector('.rubric-count');
+            if (countEl) {
+                countEl.textContent = bucket.total ? `${bucket.passed}/${bucket.total}` : '—';
+            }
+            card.classList.toggle('ring-2', Boolean(bucket.total && bucket.passed === bucket.total));
+            card.classList.toggle('ring-emerald-400', Boolean(bucket.total && bucket.passed === bucket.total));
+        });
+    }
+
+    function renderSoftFeedback(softFeedback) {
+        if (!softFeedbackPanel) return;
+        if (!softFeedback) {
+            softFeedbackPanel.classList.add('hidden');
+            return;
+        }
+        softFeedbackPanel.classList.remove('hidden');
+        if (softFeedbackText) {
+            softFeedbackText.textContent = (softFeedback.next_actions && softFeedback.next_actions[0])
+                || (softFeedback.messages && softFeedback.messages[softFeedback.messages.length - 1])
+                || 'Keep going.';
+        }
+        if (softFeedbackActions) {
+            softFeedbackActions.innerHTML = '';
+            (softFeedback.next_actions || []).slice(0, 3).forEach((action) => {
+                const li = document.createElement('li');
+                li.textContent = action;
+                softFeedbackActions.appendChild(li);
+            });
+        }
+    }
+
     function renderProgress(progress, evaluation, isExplicitEvaluation = false) {
         progressSummary.textContent = progress?.summary || progressState?.message || 'Notebook ready.';
-        
+        lastEvaluation = evaluation || null;
+
+        if (!isExplicitEvaluation) {
+            if (evaluationExplanationContainer) evaluationExplanationContainer.classList.add('hidden');
+            if (evaluationChecksWrapper) evaluationChecksWrapper.classList.add('hidden');
+            renderSoftFeedback(evaluation?.soft_feedback || progress?.soft_feedback || null);
+            if (evaluation?.rubric) renderRubric(evaluation.rubric);
+            return;
+        }
+
+        if (softFeedbackPanel) softFeedbackPanel.classList.add('hidden');
         if (isExplicitEvaluation && evaluation) {
             evaluationExplanationContainer.classList.remove('hidden');
             evaluationChecksWrapper.classList.remove('hidden');
-            
-            const isPassed = evaluation.passed;
-            if (isPassed) {
+            renderRubric(evaluation.rubric);
+
+            const band = evaluation.band || (evaluation.core_passed || evaluation.passed ? 'pass' : 'incomplete');
+            if (band === 'pass') {
                 evaluationExplanationContainer.className = 'rounded-2xl p-4 transition-colors border bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60 text-emerald-900 dark:text-emerald-200';
-                evaluationStatusIcon.textContent = '🎉';
-                evaluationStatusTitle.textContent = 'Evaluation Passed Successfully!';
-                evaluationExplanationText.textContent = evaluation.summary || 'All required checks and assertions passed cleanly. Excellent work!';
+                evaluationStatusIcon.textContent = '✓';
+                evaluationStatusTitle.textContent = 'Passed';
+                evaluationExplanationText.textContent = evaluation.summary || 'All core checks passed.';
+            } else if (band === 'pass_with_issues') {
+                evaluationExplanationContainer.className = 'rounded-2xl p-4 transition-colors border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200';
+                evaluationStatusIcon.textContent = '!';
+                evaluationStatusTitle.textContent = 'Passed with issues';
+                evaluationExplanationText.textContent = evaluation.summary || 'Core passed, but approach or reflection still needs work.';
             } else {
                 evaluationExplanationContainer.className = 'rounded-2xl p-4 transition-colors border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200';
-                evaluationStatusIcon.textContent = '⚠️';
-                evaluationStatusTitle.textContent = 'Evaluation Incomplete or Found Issues';
-                evaluationExplanationText.textContent = (evaluation.summary || 'Some evaluation checks failed.') + ' Review the individual check details below to see which requirements need adjustment.';
+                evaluationStatusIcon.textContent = '…';
+                evaluationStatusTitle.textContent = 'Incomplete';
+                evaluationExplanationText.textContent = (evaluation.summary || 'Some core checks still need work.') + ' Follow the next action on each failed item.';
             }
 
             evaluationChecks.innerHTML = '';
-            (evaluation.checks || []).forEach((check) => {
-                const item = document.createElement('li');
-                item.className = `rounded-xl px-3 py-2 flex items-start gap-2 ${check.passed ? 'bg-emerald-100/60 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-900/70' : 'bg-rose-100/60 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-900/70'}`;
-                item.innerHTML = `<span class="font-bold select-none">${check.passed ? '✓' : '✗'}</span> <span>${check.message || 'Check complete.'}</span>`;
-                evaluationChecks.appendChild(item);
+            const sectionOrder = ['core', 'approach', 'bonus', 'reflection'];
+            const checks = evaluation.checks || [];
+            sectionOrder.forEach((section) => {
+                const sectionChecks = checks.filter((c) => (c.section || 'core') === section);
+                if (!sectionChecks.length) return;
+                const heading = document.createElement('li');
+                heading.className = 'pt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400 list-none';
+                heading.textContent = section;
+                evaluationChecks.appendChild(heading);
+                sectionChecks.forEach((check) => {
+                    const item = document.createElement('li');
+                    const isBonus = check.type === 'plotting_bonus' || check.section === 'bonus';
+                    let tone;
+                    if (isBonus && check.passed) {
+                        tone = 'bg-violet-100/70 dark:bg-violet-950/50 text-violet-900 dark:text-violet-200 border border-violet-300 dark:border-violet-800';
+                    } else if (isBonus) {
+                        tone = 'bg-slate-100/80 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700';
+                    } else if (check.passed && check.issues) {
+                        tone = 'bg-amber-100/60 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-900/70';
+                    } else if (check.passed) {
+                        tone = 'bg-emerald-100/60 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-900/70';
+                    } else {
+                        tone = 'bg-rose-100/60 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-900/70';
+                    }
+                    item.className = `rounded-xl px-3 py-2 space-y-1 ${tone}`;
+                    const mark = isBonus ? (check.passed ? '★' : '☆') : (check.passed ? (check.issues ? '!' : '✓') : '→');
+                    const label = check.message || 'Check complete.';
+                    const next = (!check.passed && check.next_action) ? `<p class="text-xs opacity-90"><span class="font-semibold">Next:</span> ${check.next_action}</p>` : '';
+                    const hint = (hintsRevealed && check.hint) ? `<p class="text-xs opacity-80 hint-line"><span class="font-semibold">Hint:</span> ${check.hint}</p>` : '';
+                    item.innerHTML = `<div class="flex items-start gap-2"><span class="font-bold select-none">${mark}</span><span>${label}</span></div>${next}${hint}`;
+                    evaluationChecks.appendChild(item);
+                });
             });
+
+            if (revealHintButton) {
+                const hasHints = checks.some((c) => c.hint);
+                revealHintButton.classList.toggle('hidden', !hasHints);
+                revealHintButton.textContent = hintsRevealed ? 'Hints shown' : 'Show hint';
+            }
+
+            const bonus = evaluation.plotting_bonus || null;
+            if (plottingBonusPanel && plottingBonusText && bonus) {
+                plottingBonusPanel.classList.remove('hidden');
+                plottingBonusText.textContent = bonus.message || (bonus.passed ? 'Plotting bonus earned.' : 'Plotting bonus not earned yet.');
+            } else if (plottingBonusPanel) {
+                plottingBonusPanel.classList.add('hidden');
+            }
         }
     }
 
@@ -858,6 +1072,7 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
             cellExecutionCounts[idx] = globalExecutionCounter;
         });
 
+        const mode = showEvaluation ? 'evaluate' : 'run';
         const response = await fetch(runUrl, {
             method: 'POST',
             headers: {
@@ -868,6 +1083,8 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                 cells,
                 data_state: currentDataState,
                 previous_results: previousResults,
+                mode,
+                reveal_expected: hintsRevealed,
             }),
         });
 
@@ -881,15 +1098,19 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         }
         renderNotebook();
         renderOutputs(payload.cells || []);
-        renderProgress(payload.progress || {summary: payload.evaluation?.summary}, payload.evaluation, showEvaluation);
+        const evaluation = payload.evaluation || {};
+        if (payload.soft_feedback && !showEvaluation) {
+            evaluation.soft_feedback = payload.soft_feedback;
+        }
+        renderProgress(payload.progress || {summary: evaluation?.summary}, evaluation, showEvaluation);
         saveProgress();
         if (window.AnonymousMetrics) {
             const track = showEvaluation
                 ? window.AnonymousMetrics.trackEvaluate.bind(window.AnonymousMetrics)
                 : window.AnonymousMetrics.trackCodeRun.bind(window.AnonymousMetrics);
             track({
-                success: Boolean(payload.success),
-                passed: Boolean(payload.evaluation?.passed),
+                success: Boolean(payload.ran ?? payload.success),
+                passed: Boolean(payload.core_passed ?? payload.evaluation?.core_passed ?? payload.evaluation?.passed),
                 cell_count: cells.length,
                 completed_cells: payload.completed_cells || 0,
             });
@@ -931,13 +1152,28 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
             runNotebook(true);
         });
     }
+    if (revealHintButton) {
+        revealHintButton.addEventListener('click', () => {
+            hintsRevealed = true;
+            if (lastEvaluation) {
+                renderProgress(
+                    {summary: lastEvaluation.summary, passed: lastEvaluation.core_passed || lastEvaluation.passed},
+                    lastEvaluation,
+                    true,
+                );
+            }
+        });
+    }
+    if (spotterButton) {
+        spotterButton.addEventListener('click', toggleSpotterPanel);
+    }
 
     renderTopicChoices();
     renderFeatureChoices();
     renderTaskPrompt(currentTaskPrompt);
     renderNotebook();
     renderOutputs([]);
-    renderProgress(progressState, {summary: progressState?.summary || 'Click "Evaluate Exercise" to run tests.', checks: []}, false);
+    renderProgress(progressState, {summary: progressState?.summary || 'Run for live feedback, then Evaluate for credit.', checks: []}, false);
 })();
 </script>
 {% endblock %}

@@ -19,13 +19,31 @@ from apps.exercises.data_transformation import (
 	data_transformation_passes,
 	generate_data_transformation_task,
 )
-from apps.exercises.dataframe_providers import DATAFRAME_NAME, prepare_exercise_namespace
+from apps.exercises.dataframe_providers import (
+	DATAFRAME_NAME,
+	dataframe_head_html,
+	prepare_exercise_namespace,
+)
 from apps.exercises.pandas_intro import (
 	build_patient_dataframe,
 	dataframes_match,
 	generate_pandas_intro_task,
 	pandas_intro_task_passes,
 	scalars_match,
+)
+from apps.exercises.plotting_bonus import evaluate_plotting_bonus
+from apps.exercises.grading import (
+	MODE_EVALUATE,
+	MODE_RUN,
+	BAND_INCOMPLETE,
+	evaluate_with_graders,
+	second_seed_config,
+)
+from apps.exercises.sandbox_hardening import (
+	apply_resource_limits,
+	blocked_path_attr_guard,
+	harden_namespace_modules,
+	scrub_worker_env,
 )
 
 SANDBOX_HELPERS = {
@@ -206,11 +224,15 @@ def _validate_imports(tree: ast.AST, allowed_imports: list[str]) -> None:
             raise ValueError(f"This code uses a blocked name: {node.id}.")
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             raise ValueError("Private attributes are blocked in this exercise.")
+        if isinstance(node, ast.Attribute) and blocked_path_attr_guard(node.attr):
+            raise ValueError(f"This code uses a blocked attribute: {node.attr}.")
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name) and node.func.id in DISALLOWED_NAMES:
                 raise ValueError(f"This code calls a blocked function: {node.func.id}.")
             if isinstance(node.func, ast.Attribute) and node.func.attr.startswith("_"):
                 raise ValueError("Private methods are blocked in this exercise.")
+            if isinstance(node.func, ast.Attribute) and blocked_path_attr_guard(node.func.attr):
+                raise ValueError(f"This code calls a blocked method: {node.func.attr}.")
 
 
 def _load_allowed_modules(allowed_imports: list[str]) -> dict[str, object]:
@@ -240,11 +262,67 @@ def _build_namespace(allowed_imports: list[str], data_state: dict) -> dict[str, 
         namespace[DATAFRAME_NAME] = prepared[DATAFRAME_NAME]
     if reference_plot is not None:
         namespace["data"]["reference_plot"] = reference_plot
+        namespace["data"].pop("dataset_preview_html", None)
+    else:
+        namespace["data"].pop("reference_plot", None)
+        preview_html = dataframe_head_html(prepared.get(DATAFRAME_NAME))
+        if preview_html:
+            namespace["data"]["dataset_preview_html"] = preview_html
+        else:
+            namespace["data"].pop("dataset_preview_html", None)
     if "target" in prepared:
         namespace["data"]["target"] = prepared["target"]
     if "outcome" in prepared:
         namespace["data"]["outcome"] = prepared["outcome"]
+    # Patch library I/O only after server-side dataset prep/caching is done.
+    harden_namespace_modules(namespace)
     return namespace
+
+
+def _unavailable_result(data_state: dict | None, message: str = "Dataset unavailable.") -> dict[str, object]:
+    return {
+        "success": False,
+        "ran": False,
+        "core_passed": False,
+        "band": BAND_INCOMPLETE,
+        "cells": [
+            {
+                "source": "",
+                "source_hash": "",
+                "stdout": "",
+                "value_repr": None,
+                "html": None,
+                "error": message,
+                "figures": [],
+                "figure_reused": False,
+            }
+        ],
+        "namespace": {},
+        "completed_cells": 0,
+        "evaluation": {
+            "passed": False,
+            "core_passed": False,
+            "band": BAND_INCOMPLETE,
+            "summary": message,
+            "checks": [],
+            "rubric": {},
+            "mode": MODE_EVALUATE,
+        },
+        "progress": {"summary": message, "passed": False, "completed_cells": 0, "ran": False},
+        "data_state": data_state or {},
+        "task_prompt": "",
+        "plotting_bonus": {
+            "attempted": False,
+            "passed": False,
+            "kind_matched": False,
+            "plots_created": 0,
+            "modifications_count": 0,
+            "modification_categories": [],
+            "modifications_required": 0,
+            "message": message,
+        },
+        "error": message,
+    }
 
 
 def _capture_figures(namespace: dict[str, object]) -> list[dict[str, str]]:
@@ -266,32 +344,7 @@ def _capture_figures(namespace: dict[str, object]) -> list[dict[str, str]]:
                 "base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
             }
         )
-    plt.close("all")
     return figures
-
-
-def _snapshot_namespace(namespace: dict[str, object]) -> dict[str, object]:
-    snapshot: dict[str, object] = {}
-    for key, value in namespace.items():
-        if key in {"__builtins__"}:
-            continue
-        if isinstance(value, types.ModuleType):
-            continue
-        try:
-            snapshot[key] = deepcopy(value)
-        except Exception:
-            snapshot[key] = value
-    return snapshot
-
-
-def _restore_namespace(base_namespace: dict[str, object], snapshot: dict[str, object]) -> dict[str, object]:
-    restored = dict(base_namespace)
-    for key, value in snapshot.items():
-        try:
-            restored[key] = deepcopy(value)
-        except Exception:
-            restored[key] = value
-    return restored
 
 
 def _value_to_html(value: object) -> str | None:
@@ -369,9 +422,26 @@ def _run_notebook_payload(
     data_state: dict,
     previous_results: list[dict[str, object]] | None,
     evaluation_rules: dict | None,
+    mode: str = MODE_EVALUATE,
+    soft_skill_response: str | None = None,
+    soft_skill_prompt: str | None = None,
+    skip_second_seed: bool = False,
+    reveal_expected: bool = False,
 ) -> dict[str, object]:
-    previous_by_hash = {cell.get("source_hash"): cell for cell in previous_results or [] if cell.get("source_hash")}
+    from django.conf import settings as django_settings
+
+    if getattr(django_settings, "EXERCISE_ENABLE_RESOURCE_LIMITS", True):
+        apply_resource_limits()
+    previous_by_hash = {
+        cell.get("source_hash"): cell
+        for cell in previous_results or []
+        if cell.get("source_hash")
+    }
+    mode = MODE_RUN if mode == MODE_RUN else MODE_EVALUATE
     namespace = _build_namespace(allowed_imports, data_state or {})
+
+    if soft_skill_prompt and isinstance(namespace.get("data"), dict):
+        namespace["data"]["soft_skill_prompt"] = soft_skill_prompt
 
     results = []
     completed_cells = 0
@@ -390,81 +460,133 @@ def _run_notebook_payload(
             last_error = result["error"]
             break
 
-    evaluation = evaluate_notebook(namespace, evaluation_rules or {}) if evaluation_rules else {"passed": True, "summary": "", "checks": []}
-    success = not last_error and evaluation.get("passed", True)
-    progress = {
-        "summary": evaluation.get("summary", "") if success else evaluation.get("summary", "Review the notebook and try again."),
-        "passed": bool(success),
-        "completed_cells": completed_cells,
-    }
+    ran = last_error is None
+    cell_sources = [cell.get("source", "") for cell in cells[:completed_cells]]
+    # Optional exercise outputs — avoid NameError in assertion expressions.
+    for optional in (
+        "answer",
+        "different",
+        "relevant",
+        "p_value",
+        "plotted",
+        "df0",
+        "df1",
+        "df2",
+        "numeric_columns",
+    ):
+        namespace.setdefault(optional, None)
     task = namespace.get("task")
+    bonus_spec = task.get("plotting_bonus") if isinstance(task, dict) else None
+    figure_count = sum(len(item.get("figures") or []) for item in results)
+    plotting_bonus = evaluate_plotting_bonus(
+        bonus=bonus_spec if isinstance(bonus_spec, dict) else None,
+        cell_sources=cell_sources,
+        figure_count=figure_count,
+    )
+
+    evaluation = evaluate_with_graders(
+        namespace,
+        evaluation_rules or {},
+        mode=mode,
+        cell_sources=cell_sources,
+                soft_skill_response=soft_skill_response,
+                plotting_bonus=plotting_bonus,
+                reveal_expected=reveal_expected,
+                second_seed_ok=None,
+                soft_skill_prompt=soft_skill_prompt,
+            )
+
+    from django.conf import settings as django_settings
+
+    if (
+        ran
+        and mode == MODE_EVALUATE
+        and not skip_second_seed
+        and evaluation.get("core_passed")
+        and second_seed_config(evaluation_rules).get("enabled")
+        and getattr(django_settings, "EXERCISE_ENABLE_SECOND_SEED", True)
+    ):
+        offset = int(second_seed_config(evaluation_rules).get("seed_offset") or 10007)
+        alt_state = deepcopy(data_state or {})
+        alt_state["seed"] = int(alt_state.get("seed", 42) or 42) + offset
+        for key in ("reference_plot", "dataset_preview_html"):
+            alt_state.pop(key, None)
+        try:
+            alt = _run_notebook_payload(
+                cells=cells,
+                allowed_imports=allowed_imports,
+                data_state=alt_state,
+                previous_results=None,
+                evaluation_rules=evaluation_rules,
+                mode=MODE_EVALUATE,
+                soft_skill_response=soft_skill_response,
+                soft_skill_prompt=soft_skill_prompt,
+                skip_second_seed=True,
+                reveal_expected=False,
+            )
+            second_seed_ok = bool(alt.get("core_passed") or alt.get("evaluation", {}).get("core_passed"))
+        except Exception:
+            second_seed_ok = False
+        if second_seed_ok is False:
+            evaluation = evaluate_with_graders(
+                namespace,
+                evaluation_rules or {},
+                mode=mode,
+                cell_sources=cell_sources,
+                soft_skill_response=soft_skill_response,
+                plotting_bonus=plotting_bonus,
+                reveal_expected=reveal_expected,
+                second_seed_ok=False,
+                soft_skill_prompt=soft_skill_prompt,
+            )
+
+    core_passed = bool(evaluation.get("core_passed")) if ran else False
+    success = bool(ran) if mode == MODE_RUN else bool(ran and core_passed)
+
+    progress = {
+        "summary": evaluation.get("summary", ""),
+        "passed": bool(core_passed) if mode == MODE_EVALUATE else False,
+        "completed_cells": completed_cells,
+        "ran": ran,
+        "band": evaluation.get("band") or BAND_INCOMPLETE,
+        "mode": mode,
+    }
     task_prompt = ""
     if isinstance(task, dict):
         task_prompt = str(task.get("prompt") or "").strip()
 
     return {
         "success": success,
+        "ran": ran,
+        "core_passed": core_passed,
+        "band": evaluation.get("band") or BAND_INCOMPLETE,
+        "mode": mode,
         "cells": results,
-        "namespace": {key: repr(value) for key, value in namespace.items() if key not in {"__builtins__"}},
+        "namespace": {
+            key: repr(value)
+            for key, value in namespace.items()
+            if key not in {"__builtins__"}
+        },
         "completed_cells": completed_cells,
         "evaluation": evaluation,
         "progress": progress,
         "data_state": namespace.get("data", data_state or {}),
         "task_prompt": task_prompt,
+        "plotting_bonus": plotting_bonus,
+        "soft_feedback": evaluation.get("soft_feedback"),
         "error": last_error,
     }
 
 
 def evaluate_notebook(namespace: dict[str, object], evaluation_rules: dict) -> dict[str, object]:
-    checks: list[dict[str, object]] = []
-    passed = True
-
-    for variable_name in evaluation_rules.get("required_variables", []):
-        has_variable = variable_name in namespace
-        checks.append(
-            {
-                "type": "required_variable",
-                "name": variable_name,
-                "passed": has_variable,
-                "message": "Variable is available." if has_variable else f"Missing variable: {variable_name}.",
-            }
-        )
-        passed = passed and has_variable
-
-    for variable_name, expected_value in evaluation_rules.get("expected_values", {}).items():
-        actual_value = namespace.get(variable_name)
-        is_match = actual_value == expected_value
-        checks.append(
-            {
-                "type": "expected_value",
-                "name": variable_name,
-                "passed": is_match,
-                "message": "Value matched." if is_match else f"Expected {expected_value!r}, got {actual_value!r}.",
-            }
-        )
-        passed = passed and is_match
-
-    for expression in evaluation_rules.get("assertions", []):
-        try:
-            is_match = bool(eval(expression, namespace, namespace))
-            error = None
-        except Exception as exc:
-            is_match = False
-            error = str(exc)
-        checks.append(
-            {
-                "type": "assertion",
-                "expression": expression,
-                "passed": is_match,
-                "message": "Assertion passed." if is_match else error or "Assertion failed.",
-            }
-        )
-        passed = passed and is_match
-
-    summary = evaluation_rules.get("success_message", "Exercise checks complete.") if passed else evaluation_rules.get(
-        "failure_message", "Review the notebook and try again."
+    """Backward-compatible wrapper around the typed grading engine."""
+    return evaluate_with_graders(
+        namespace,
+        evaluation_rules or {},
+        mode=MODE_EVALUATE,
+        cell_sources=[],
+        plotting_bonus=None,
     )
-    return {"passed": passed, "summary": summary, "checks": checks}
 
 
 def run_notebook(
@@ -473,6 +595,10 @@ def run_notebook(
     data_state: dict | None = None,
     previous_results: list[dict[str, object]] | None = None,
     evaluation_rules: dict | None = None,
+    mode: str = MODE_EVALUATE,
+    soft_skill_response: str | None = None,
+    soft_skill_prompt: str | None = None,
+    reveal_expected: bool = False,
 ) -> dict[str, object]:
     payload = {
         "cells": cells,
@@ -480,12 +606,36 @@ def run_notebook(
         "data_state": data_state or {},
         "previous_results": previous_results or [],
         "evaluation_rules": evaluation_rules or {},
+        "mode": mode,
+        "soft_skill_response": soft_skill_response,
+        "soft_skill_prompt": soft_skill_prompt,
+        "reveal_expected": reveal_expected,
     }
 
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    env = os.environ.copy()
+    env = scrub_worker_env(os.environ)
     pythonpath = env.get("PYTHONPATH")
     env["PYTHONPATH"] = project_root if not pythonpath else f"{project_root}{os.pathsep}{pythonpath}"
+    env["EXERCISE_SANDBOX_WORKER"] = "1"
+    env["DJANGO_SETTINGS_MODULE"] = env.get("DJANGO_SETTINGS_MODULE") or "project_core.settings"
+    from django.conf import settings as django_settings
+
+    env["EXERCISE_ENABLE_RESOURCE_LIMITS"] = (
+        "1" if getattr(django_settings, "EXERCISE_ENABLE_RESOURCE_LIMITS", True) else "0"
+    )
+    env["EXERCISE_ENABLE_SECOND_SEED"] = (
+        "1" if getattr(django_settings, "EXERCISE_ENABLE_SECOND_SEED", True) else "0"
+    )
+    # Never pass host secrets into the worker environment.
+    for key in list(env):
+        upper = key.upper()
+        if upper == "DJANGO_SECRET_KEY" or upper.startswith("DB_") or upper in {
+            "DATABASE_URL",
+            "EMAIL_HOST_PASSWORD",
+            "EMAIL_HOST_USER",
+            "ADMIN_EMAIL",
+        }:
+            env.pop(key, None)
 
     command = [
         sys.executable,
@@ -505,7 +655,7 @@ def run_notebook(
             input=json.dumps(payload),
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=120,
             cwd=project_root,
             env=env,
             check=False,
@@ -513,11 +663,25 @@ def run_notebook(
     except subprocess.TimeoutExpired:
         return {
             "success": False,
+            "ran": False,
+            "core_passed": False,
+            "band": BAND_INCOMPLETE,
             "cells": [],
             "namespace": {},
             "completed_cells": 0,
-            "evaluation": {"passed": False, "summary": "Notebook execution timed out.", "checks": []},
-            "progress": {"summary": "Notebook execution timed out.", "passed": False, "completed_cells": 0},
+            "evaluation": {
+                "passed": False,
+                "core_passed": False,
+                "summary": "Notebook execution timed out.",
+                "checks": [],
+                "band": BAND_INCOMPLETE,
+            },
+            "progress": {
+                "summary": "Notebook execution timed out.",
+                "passed": False,
+                "completed_cells": 0,
+                "ran": False,
+            },
             "data_state": data_state or {},
             "error": "Execution timed out in isolated worker.",
         }
@@ -526,25 +690,48 @@ def run_notebook(
         stderr = completed.stderr.strip() or "Notebook worker exited without returning a result."
         return {
             "success": False,
+            "ran": False,
+            "core_passed": False,
+            "band": BAND_INCOMPLETE,
             "cells": [],
             "namespace": {},
             "completed_cells": 0,
-            "evaluation": {"passed": False, "summary": stderr, "checks": []},
-            "progress": {"summary": stderr, "passed": False, "completed_cells": 0},
+            "evaluation": {
+                "passed": False,
+                "core_passed": False,
+                "summary": stderr,
+                "checks": [],
+                "band": BAND_INCOMPLETE,
+            },
+            "progress": {"summary": stderr, "passed": False, "completed_cells": 0, "ran": False},
             "data_state": data_state or {},
             "error": stderr,
         }
 
     try:
-        return json.loads(completed.stdout)
-    except json.JSONDecodeError:
+        return json.loads(completed.stdout.strip().splitlines()[-1])
+    except Exception:
         return {
             "success": False,
+            "ran": False,
+            "core_passed": False,
+            "band": BAND_INCOMPLETE,
             "cells": [],
             "namespace": {},
             "completed_cells": 0,
-            "evaluation": {"passed": False, "summary": "Notebook worker returned invalid JSON.", "checks": []},
-            "progress": {"summary": "Notebook worker returned invalid JSON.", "passed": False, "completed_cells": 0},
+            "evaluation": {
+                "passed": False,
+                "core_passed": False,
+                "summary": "Invalid worker response.",
+                "checks": [],
+                "band": BAND_INCOMPLETE,
+            },
+            "progress": {
+                "summary": "Invalid worker response.",
+                "passed": False,
+                "completed_cells": 0,
+                "ran": False,
+            },
             "data_state": data_state or {},
-            "error": "Notebook worker returned invalid JSON.",
+            "error": completed.stdout or completed.stderr or "Invalid worker response.",
         }

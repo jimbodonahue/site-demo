@@ -8,6 +8,7 @@ from apps.exercises.data_transformation import (
 	generate_data_transformation_task,
 )
 from apps.exercises.pandas_intro import build_patient_dataframe, generate_pandas_intro_task
+from apps.exercises.plotting_bonus import attach_plotting_bonus_to_prepared
 
 DATAFRAME_NAME = "df"
 
@@ -54,11 +55,60 @@ def prepare_exercise_namespace(data_state: dict | None) -> dict[str, Any]:
 		return {}
 
 	if source == "pandas_intro":
-		return _build_pandas_intro_context(state)
-	if source == "data_transformation":
-		return _build_data_transformation_context(state)
+		prepared = _build_pandas_intro_context(state)
+	elif source == "data_transformation":
+		prepared = _build_data_transformation_context(state)
+	else:
+		raise ValueError(f"Unknown dataframe_source: {source}")
 
-	raise ValueError(f"Unknown dataframe_source: {source}")
+	return attach_plotting_bonus_to_prepared(
+		prepared,
+		source=source,
+		difficulty=_difficulty(state),
+		seed=int(state.get("seed", 42) or 42),
+	)
+
+
+def dataframe_head_html(df: Any, rows: int = 10) -> str:
+	"""Return a compact HTML table for the Exercise Graphic panel."""
+	if df is None or not hasattr(df, "head"):
+		return ""
+	try:
+		preview = df.head(rows)
+		return preview.to_html(
+			classes="dataframe-preview",
+			border=0,
+			index=True,
+			justify="left",
+			max_cols=12,
+			escape=True,
+		)
+	except Exception:
+		return ""
+
+
+def enrich_data_state_visuals(data_state: dict | None) -> dict[str, Any]:
+	"""Attach reference_plot and/or dataset_preview_html for the exercise side panel.
+
+	Exercises with a graph keep ``reference_plot``. Otherwise the working table
+	``df`` is summarized with ``dataset_preview_html`` so the panel is never empty.
+	"""
+	state = deepcopy(data_state or {})
+	state.pop("dataset_preview_html", None)
+	try:
+		prepared = prepare_exercise_namespace(state)
+	except Exception:
+		return state
+
+	reference_plot = prepared.get("reference_plot")
+	if reference_plot:
+		state["reference_plot"] = reference_plot
+		return state
+
+	html = dataframe_head_html(prepared.get(DATAFRAME_NAME))
+	if html:
+		state["dataset_preview_html"] = html
+	return state
 
 
 def extract_task_prompt(data_state: dict | None) -> str:

@@ -17,19 +17,40 @@ import sys
 
 from dotenv import load_dotenv
 
+# Sandbox workers must not reload host secrets from .env.
+IS_EXERCISE_SANDBOX_WORKER = os.getenv("EXERCISE_SANDBOX_WORKER") == "1"
+if not IS_EXERCISE_SANDBOX_WORKER:
+	# Load .env from the project root (works on PythonAnywhere even if CWD differs).
+	BASE_DIR_FOR_ENV = Path(__file__).resolve().parent.parent
+	load_dotenv(BASE_DIR_FOR_ENV / ".env")
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
-
-# Load .env from the project root (works on PythonAnywhere even if CWD differs).
-load_dotenv(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY") or "fallback-secret-key"
+SECRET_KEY = (
+	"exercise-sandbox-worker-key-not-for-crypto"
+	if IS_EXERCISE_SANDBOX_WORKER
+	else (os.getenv("DJANGO_SECRET_KEY") or "fallback-secret-key")
+)
 SERVER = os.getenv("SERVER", "development")
+
+# Notebook run endpoint rate limit (per session+IP window).
+EXERCISE_RUN_RATE_LIMIT = int(os.getenv("EXERCISE_RUN_RATE_LIMIT", "30"))
+EXERCISE_RUN_RATE_WINDOW = int(os.getenv("EXERCISE_RUN_RATE_WINDOW", "60"))
+EXERCISE_ENABLE_RESOURCE_LIMITS = os.getenv("EXERCISE_ENABLE_RESOURCE_LIMITS", "1") != "0"
+EXERCISE_ENABLE_SECOND_SEED = os.getenv("EXERCISE_ENABLE_SECOND_SEED", "1") != "0"
+if "test" in sys.argv:
+	EXERCISE_RUN_RATE_LIMIT = 10_000
+	EXERCISE_ENABLE_RESOURCE_LIMITS = False
+	EXERCISE_ENABLE_SECOND_SEED = False
+if IS_EXERCISE_SANDBOX_WORKER:
+	EXERCISE_ENABLE_RESOURCE_LIMITS = os.getenv("EXERCISE_ENABLE_RESOURCE_LIMITS", "1") != "0"
+	EXERCISE_ENABLE_SECOND_SEED = os.getenv("EXERCISE_ENABLE_SECOND_SEED", "1") != "0"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = SERVER == "development"

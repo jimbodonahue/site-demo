@@ -9,6 +9,16 @@ from apps.exercises.models import Exercise, Track
 from apps.exercises.services import run_notebook, split_notebook_source
 
 
+def _rules_blob(exercise):
+	rules = exercise.evaluation_rules or {}
+	parts = list(rules.get("assertions") or [])
+	for grader in rules.get("graders") or []:
+		parts.append(str(grader.get("expression") or ""))
+		parts.append(str(grader.get("callable") or ""))
+		parts.append(str(grader.get("variable") or ""))
+	return " ".join(parts)
+
+
 class DataZooTests(TestCase):
 	def test_sector_catalog_has_12_entries(self):
 		self.assertEqual(len(DATA_SCIENCE_SECTORS), 12)
@@ -170,14 +180,33 @@ class ExerciseViewTests(TestCase):
 					"cells": split_notebook_source(self.exercise.starter_code),
 					"data_state": self.exercise.initial_data_state(),
 					"previous_results": [],
+					"mode": "evaluate",
 				}
 			),
 			content_type="application/json",
 		)
 		self.assertEqual(response.status_code, 200)
 		payload = response.json()
-		self.assertTrue(payload["success"])
+		self.assertTrue(payload["ran"])
+		self.assertTrue(payload["core_passed"])
 		self.assertTrue(payload["evaluation"]["passed"])
+
+		soft = self.client.post(
+			reverse("exercises:run", args=[self.exercise.slug]),
+			data=json.dumps(
+				{
+					"cells": split_notebook_source(self.exercise.starter_code),
+					"data_state": self.exercise.initial_data_state(),
+					"previous_results": [],
+					"mode": "run",
+				}
+			),
+			content_type="application/json",
+		)
+		soft_payload = soft.json()
+		self.assertTrue(soft_payload["ran"])
+		self.assertFalse(soft_payload["evaluation"]["passed"])
+		self.assertIsNotNone(soft_payload.get("soft_feedback") or soft_payload["evaluation"].get("soft_feedback"))
 
 	def test_reset_endpoint_restores_initial_state(self):
 		self.client.post(
@@ -269,8 +298,9 @@ class SeededExerciseTests(TestCase):
 		seeded = Exercise.objects.filter(slug="pandas-introduction").first()
 		self.assertIsNotNone(seeded)
 		self.assertEqual(seeded.title, "Pandas Introduction")
-		self.assertIn("df", seeded.evaluation_rules.get("required_variables", []))
+		self.assertIn("df", _rules_blob(seeded))
 		self.assertEqual(seeded.data_definition.get("dataframe_source"), "pandas_intro")
+		self.assertIn("pandas_intro_task_passes", _rules_blob(seeded))
 		choices = seeded.feature_choices()
 		self.assertTrue(choices)
 		for choice in choices:
@@ -341,7 +371,7 @@ class SeededExerciseTests(TestCase):
 		self.assertNotIn("boolean conditions", intro)
 		self.assertNotIn("grouping", intro)
 		self.assertIn("business would want", seeded.soft_skill_prompt.lower())
-		self.assertIn("pandas_intro_task_passes", seeded.evaluation_rules.get("assertions", [])[0])
+		self.assertIn("pandas_intro_task_passes", _rules_blob(seeded))
 
 	def test_preloaded_dataframe_is_always_named_df(self):
 		from apps.exercises.dataframe_providers import prepare_exercise_namespace
@@ -425,7 +455,7 @@ class DataTransformationTests(TestCase):
 		self.assertEqual(exercise.order, 20)
 		self.assertEqual(exercise.data_definition.get("dataframe_source"), "data_transformation")
 		self.assertIn("likert", exercise.soft_skill_prompt.lower())
-		self.assertIn("data_transformation_passes", exercise.evaluation_rules["assertions"][0])
+		self.assertIn("data_transformation_passes", _rules_blob(exercise))
 		response = self.client.get(reverse("exercises:detail", args=[exercise.slug]))
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "Data Features")
@@ -539,3 +569,101 @@ class SoftSkillReflectionTests(TestCase):
 		)
 		self.assertEqual(response.status_code, 302)
 		self.assertEqual(response.url, reverse("exercises:detail", args=[self.exercise.slug]))
+
+
+class SpotterTipsTests(TestCase):
+	def test_detail_page_includes_spotter_button_and_tips(self):
+		exercise = Exercise.objects.get(slug="pandas-introduction")
+		response = self.client.get(reverse("exercises:detail", args=[exercise.slug]))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Spotter")
+		self.assertContains(response, "spotter-tips-data")
+
+	def test_lite_sources_have_spotter_tips(self):
+		from apps.exercises.spotter_tips import SPOTTER_TIPS, get_spotter_tips
+
+		for exercise in Exercise.objects.filter(
+			published=True,
+			is_placeholder=False,
+			track__slug="data-analytics-with-python",
+		):
+			source = (exercise.data_definition or {}).get("dataframe_source")
+			self.assertIn(source, SPOTTER_TIPS, msg=exercise.slug)
+			tips = get_spotter_tips(source)
+			for level in ("easy", "medium", "hard"):
+				self.assertGreaterEqual(len(tips[level]), 2, msg=f"{exercise.slug}:{level}")
+
+
+class PlottingBonusTests(TestCase):
+	def test_prepared_namespace_includes_plotting_bonus(self):
+		from apps.exercises.dataframe_providers import prepare_exercise_namespace
+
+		prepared = prepare_exercise_namespace(
+			{"dataframe_source": "pandas_intro", "selected_feature": "easy", "seed": 11}
+		)
+		self.assertIn("task", prepared)
+		self.assertIn("plotting_bonus", prepared["task"])
+
+	def test_evaluate_accepts_any_plot_for_pandas_intro(self):
+		from apps.exercises.plotting_bonus import build_plotting_bonus, evaluate_plotting_bonus
+
+		bonus = build_plotting_bonus("pandas_intro", difficulty="easy", seed=3)
+		result = evaluate_plotting_bonus(
+			bonus=bonus,
+			cell_sources=["plt.plot([1, 2, 3])"],
+			figure_count=1,
+		)
+		self.assertTrue(result["passed"])
+
+
+class GradingEngineTests(TestCase):
+	def test_soft_run_does_not_award_core_pass(self):
+		from apps.exercises.grading import evaluate_with_graders, MODE_RUN
+
+		rules = {
+			"graders": [
+				{"id": "req", "type": "required_variable", "variable": "answer", "section": "core", "soft": True},
+				{"id": "eq", "type": "equals", "variable": "answer", "expected": 2, "section": "core", "soft": False},
+			]
+		}
+		soft = evaluate_with_graders({"answer": 2}, rules, mode=MODE_RUN)
+		self.assertFalse(soft["passed"])
+		self.assertFalse(soft["core_passed"])
+		self.assertEqual(soft["soft_feedback"]["status"], "close")
+
+
+class SandboxSecurityTests(TestCase):
+	def test_pandas_file_io_is_blocked(self):
+		result = run_notebook(
+			cells=[{"source": "pd.read_csv('.env')"}],
+			allowed_imports=["pandas", "numpy", "matplotlib.pyplot"],
+			data_state={"seed": 1},
+			evaluation_rules={},
+			mode="run",
+		)
+		error = result["cells"][0].get("error") or ""
+		self.assertTrue(error, result)
+		self.assertIn("blocked", error.lower() + str(result.get("error") or "").lower())
+
+
+class ExerciseRateLimitTests(TestCase):
+	def test_rate_limit_helper_blocks_after_limit(self):
+		from django.core.cache import cache
+		from django.test import RequestFactory
+		from django.contrib.sessions.middleware import SessionMiddleware
+		from apps.exercises.rate_limit import check_rate_limit
+		from django.test import override_settings
+
+		cache.clear()
+		factory = RequestFactory()
+		req = factory.post("/x/")
+		middleware = SessionMiddleware(lambda r: None)
+		middleware.process_request(req)
+		req.session.save()
+		with override_settings(EXERCISE_RUN_RATE_LIMIT=3, EXERCISE_RUN_RATE_WINDOW=60):
+			for _ in range(3):
+				allowed, _retry = check_rate_limit(req, action="exercise_run")
+				self.assertTrue(allowed)
+			allowed, retry_after = check_rate_limit(req, action="exercise_run")
+			self.assertFalse(allowed)
+			self.assertGreaterEqual(retry_after, 1)
