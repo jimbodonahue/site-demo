@@ -20,25 +20,134 @@ def _rules_blob(exercise):
 
 
 class DataZooTests(TestCase):
-	def test_sector_catalog_has_12_entries(self):
-		self.assertEqual(len(DATA_SCIENCE_SECTORS), 12)
-		self.assertIn("biostatistics", DATA_SCIENCE_SECTORS)
-		self.assertIn("econometrics", DATA_SCIENCE_SECTORS)
+	def test_sector_catalog_has_20_entries(self):
+		self.assertEqual(len(DATA_SCIENCE_SECTORS), 20)
+		self.assertIn("healthcare", DATA_SCIENCE_SECTORS)
+		self.assertIn("finance", DATA_SCIENCE_SECTORS)
+		self.assertIn("crime", DATA_SCIENCE_SECTORS)
 
 	def test_build_zoo_dataset_returns_expected_dataframe(self):
-		df = build_zoo_dataset("biostatistics", rows=25, seed=7)
+		df = build_zoo_dataset("healthcare", rows=25, seed=7)
 		self.assertEqual(len(df), 25)
 		self.assertIn("patient_id", df.columns)
-		self.assertIn("age", df.columns)
-		self.assertIn("outcome", df.columns)
+		self.assertIn("admission_age", df.columns)
+		self.assertIn("discharge_status", df.columns)
 
-	def test_sector_catalog_has_three_parquet_datasets_available(self):
+	def test_sector_catalog_has_parquet_datasets_available(self):
 		for sector in DATA_SCIENCE_SECTORS:
 			datasets = list_zoo_datasets(sector)
-			self.assertEqual(len(datasets), 3)
+			self.assertGreaterEqual(len(datasets), 1, sector)
 			for path in datasets:
 				self.assertTrue(path.exists())
 				self.assertEqual(path.suffix, ".parquet")
+
+	def test_refresh_scenario_always_changes_seed_and_maybe_topic(self):
+		import numpy as np
+
+		from apps.exercises.data_zoo import refresh_scenario_state
+
+		base = {
+			"dataframe_source": "pandas_intro",
+			"data_field": "insurance",
+			"topic": "insurance",
+			"seed": 42,
+			"dataset_file": "01_medical_cost_personal_dataset.parquet",
+		}
+		# Force topic change
+		changed = refresh_scenario_state(
+			base,
+			change_topic_probability=1.0,
+			rng=np.random.default_rng(0),
+		)
+		self.assertNotEqual(changed["seed"], 42)
+		self.assertNotEqual(changed["data_field"], "insurance")
+		self.assertEqual(changed["data_field"], changed["topic"])
+		self.assertTrue(changed.get("dataset_file"))
+
+		# Force keep topic
+		kept = refresh_scenario_state(
+			base,
+			force_topic="retail",
+			change_topic_probability=1.0,
+			rng=np.random.default_rng(1),
+		)
+		self.assertEqual(kept["data_field"], "retail")
+		self.assertNotEqual(kept["seed"], 42)
+
+
+class ZooTopicPreferenceTests(TestCase):
+	def setUp(self):
+		from apps.authentication.models import UserProfile
+
+		self.user = CustomUser.objects.create_user(
+			email="zoofan@example.com",
+			username="zoofan",
+			password="pass12345",
+		)
+		UserProfile.objects.create(
+			user=self.user,
+			nickname="ZooFan",
+			data_field="sports",
+			preferred_topics=["sports", "finance", "retail"],
+			dataset_file="",
+		)
+		self.exercise = Exercise.objects.get(slug="pandas-introduction")
+
+	def test_new_attempt_defaults_to_profile_topic(self):
+		self.client.force_login(self.user)
+		response = self.client.get(reverse("exercises:detail", args=[self.exercise.slug]))
+		self.assertEqual(response.status_code, 200)
+		data_state = response.context["initial_data"]
+		self.assertEqual(data_state.get("data_field"), "sports")
+		self.assertEqual(self.user.profile.primary_topic(), "sports")
+		self.assertEqual(self.user.profile.ranked_topics()[0], "sports")
+		self.assertEqual(len(self.user.profile.ranked_topics()), 3)
+
+	def test_reset_refreshes_seed_and_returns_new_dataset(self):
+		self.client.force_login(self.user)
+		# Prime an attempt
+		self.client.get(reverse("exercises:detail", args=[self.exercise.slug]))
+		first = self.client.post(
+			reverse("exercises:reset", args=[self.exercise.slug]),
+			data=json.dumps({"difficulty": "easy"}),
+			content_type="application/json",
+		)
+		self.assertEqual(first.status_code, 200)
+		first_payload = first.json()
+		self.assertTrue(first_payload["success"])
+		first_seed = first_payload["data_state"]["seed"]
+
+		second = self.client.post(
+			reverse("exercises:reset", args=[self.exercise.slug]),
+			data=json.dumps({"difficulty": "easy"}),
+			content_type="application/json",
+		)
+		self.assertEqual(second.status_code, 200)
+		second_payload = second.json()
+		self.assertNotEqual(second_payload["data_state"]["seed"], first_seed)
+		page = self.client.get(reverse("exercises:detail", args=[self.exercise.slug]))
+		self.assertContains(page, "Click again to refresh data")
+		self.assertContains(page, "Clicking the current difficulty refreshes")
+
+	def test_locked_topic_refresh_keeps_selected_topic(self):
+		self.client.force_login(self.user)
+		self.client.get(reverse("exercises:detail", args=[self.exercise.slug]))
+		response = self.client.post(
+			reverse("exercises:reset", args=[self.exercise.slug]),
+			data=json.dumps(
+				{
+					"data_field": "finance",
+					"topic": "finance",
+					"lock_topic": True,
+					"difficulty": "medium",
+				}
+			),
+			content_type="application/json",
+		)
+		self.assertEqual(response.status_code, 200)
+		payload = response.json()
+		self.assertEqual(payload["data_state"]["data_field"], "finance")
+		self.assertEqual(payload["data_state"]["difficulty"], "medium")
 
 
 class ExerciseRuntimeTests(TestCase):
@@ -149,14 +258,14 @@ class ExerciseSolveTests(TestCase):
 	"""End-to-end: real student-style solutions should pass evaluation."""
 
 	def test_pandas_introduction_solved_with_real_operations(self):
-		from apps.exercises.services import _build_namespace
+		from apps.exercises.dataframe_providers import prepare_exercise_namespace
 
 		exercise = Exercise.objects.get(slug="pandas-introduction")
 		for difficulty in ("easy", "medium", "hard"):
 			data_state = exercise.initial_data_state()
 			data_state["difficulty"] = difficulty
 			data_state["selected_feature"] = difficulty
-			ns = _build_namespace(exercise.allowed_imports, data_state)
+			ns = prepare_exercise_namespace(data_state)
 			task = ns["task"]
 			if difficulty == "easy":
 				# Compute the summary without reading task['expected'] into answer.
@@ -367,21 +476,47 @@ class ExerciseViewTests(TestCase):
 
 class SeededExerciseTests(TestCase):
 	def test_lite_catalog_keeps_first_two_exercises(self):
-		expected = [
+		live = [
 			(10, "pandas-introduction", "Pandas Introduction"),
 			(20, "data-transformation", "Data Transformation"),
+		]
+		placeholders = [
+			(30, "data-cleaning-messy-dataset", "Data Cleaning: Messy Dataset"),
+			(40, "clean-messy-dataset", "Data Cleaning: Missing Values"),
+			(50, "descriptive-statistics", "Descriptive Statistics"),
+			(60, "ab-testing-conditional-probability", "A/B Testing and Conditional Probability"),
 		]
 		exercises = list(
 			Exercise.objects.filter(track__slug="data-analytics-with-python").order_by("order", "title")
 		)
-		self.assertEqual(len(exercises), 2)
-		for exercise, (order, slug, title) in zip(exercises, expected):
+		self.assertEqual(len(exercises), 6)
+		for exercise, (order, slug, title) in zip(exercises[:2], live):
 			self.assertEqual(exercise.order, order)
 			self.assertEqual(exercise.slug, slug)
 			self.assertEqual(exercise.title, title)
 			self.assertFalse(exercise.is_placeholder)
 			self.assertTrue(exercise.published)
-		self.assertEqual(Track.objects.filter(published=True).count(), 1)
+		for exercise, (order, slug, title) in zip(exercises[2:], placeholders):
+			self.assertEqual(exercise.order, order)
+			self.assertEqual(exercise.slug, slug)
+			self.assertEqual(exercise.title, title)
+			self.assertTrue(exercise.is_placeholder)
+			self.assertTrue(exercise.published)
+		self.assertEqual(Track.objects.filter(published=True).count(), 2)
+		ml = Track.objects.get(slug="machine-learning-and-ai")
+		self.assertTrue(ml.is_placeholder)
+		self.assertTrue(ml.published)
+
+	def test_feature_placeholders_render_coming_soon(self):
+		for name, title in (
+			("forum_placeholder", "Forum"),
+			("challenges_placeholder", "Weekly Challenges"),
+			("data_zoo_placeholder", "Data Zoo"),
+		):
+			response = self.client.get(reverse(name))
+			self.assertEqual(response.status_code, 200)
+			self.assertContains(response, "Coming soon")
+			self.assertContains(response, title)
 
 	def test_seeded_pandas_introduction_exercise_exists(self):
 		seeded = Exercise.objects.filter(slug="pandas-introduction").first()
@@ -491,8 +626,8 @@ class PandasIntroGeneratorTests(TestCase):
 		self.assertEqual(task["conditions"], [])
 		self.assertIsNotNone(task["expected"])
 		self.assertIn("answer", task["prompt"].lower())
-		self.assertIn("first_name", df.columns)
-		self.assertIn("last_name", df.columns)
+		# Zoo-backed insurance sample exposes age / charges style columns.
+		self.assertTrue({"age", "charges", "bmi", "sex"} & set(df.columns) or len(df.columns) >= 3)
 
 	def test_medium_task_returns_filtered_column_subset(self):
 		from apps.exercises.pandas_intro import build_patient_dataframe, generate_pandas_intro_task

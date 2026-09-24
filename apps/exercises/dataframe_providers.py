@@ -21,12 +21,24 @@ def _difficulty(data_state: dict) -> str:
 	)
 
 
+def _zoo_kwargs(data_state: dict) -> dict[str, Any]:
+	return {
+		"data_field": data_state.get("data_field") or data_state.get("topic"),
+		"dataset_file": data_state.get("dataset_file"),
+		"topic": data_state.get("topic") or data_state.get("data_field"),
+	}
+
+
 def _build_pandas_intro_context(data_state: dict) -> dict[str, Any]:
 	difficulty = _difficulty(data_state)
 	if difficulty not in {"easy", "medium", "hard"}:
 		difficulty = "easy"
 	seed = data_state.get("seed", 42)
-	df = build_patient_dataframe(rows=data_state.get("n_rows", 80), seed=seed)
+	df = build_patient_dataframe(
+		rows=data_state.get("n_rows", 80),
+		seed=seed,
+		**_zoo_kwargs(data_state),
+	)
 	task = generate_pandas_intro_task(df, difficulty=difficulty, seed=seed)
 	return {DATAFRAME_NAME: df, "task": task, "answer": None}
 
@@ -36,7 +48,11 @@ def _build_data_transformation_context(data_state: dict) -> dict[str, Any]:
 	if difficulty not in {"easy", "medium", "hard"}:
 		difficulty = "easy"
 	seed = data_state.get("seed", 42)
-	df = build_product_dataframe(rows=data_state.get("n_rows", 90), seed=seed)
+	df = build_product_dataframe(
+		rows=data_state.get("n_rows", 90),
+		seed=seed,
+		**_zoo_kwargs(data_state),
+	)
 	task = generate_data_transformation_task(df, difficulty=difficulty, seed=seed)
 	return {
 		DATAFRAME_NAME: df,
@@ -53,6 +69,14 @@ def prepare_exercise_namespace(data_state: dict | None) -> dict[str, Any]:
 	source = (state.get("dataframe_source") or "").strip()
 	if not source:
 		return {}
+
+	# Default zoo sectors when the attempt has not chosen a topic yet.
+	# Profile preference is applied upstream in views._with_dataset_selection.
+	from apps.exercises.data_zoo import default_sector_for_source
+
+	if not (state.get("data_field") or state.get("topic")):
+		state["data_field"] = default_sector_for_source(source)
+		state["topic"] = state["data_field"]
 
 	if source == "pandas_intro":
 		prepared = _build_pandas_intro_context(state)

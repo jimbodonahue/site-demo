@@ -206,17 +206,19 @@ class Exercise(models.Model):
 			self.data_definition.get("dataframe_source")
 			or (self.data_definition.get("initial_data") or {}).get("dataframe_source")
 		)
-		# Data quality cleanup uses generated zoo samples by sector.
-		# Missing-values exercises also need a dataset file, so they opt in via topic_choices.
-		if source != "data_quality":
+		# Live generators draw from the Data Zoo and expose a sector picker.
+		zoo_sources = {
+			"pandas_intro",
+			"data_transformation",
+			"data_quality",
+			"missing_values",
+		}
+		if source not in zoo_sources:
 			return []
 
-		from apps.exercises.data_zoo import DATA_SCIENCE_SECTORS
+		from apps.exercises.data_zoo import default_topic_choices
 
-		return [
-			{"label": sector.replace("_", " ").title(), "value": sector}
-			for sector in DATA_SCIENCE_SECTORS
-		]
+		return default_topic_choices()
 
 
 class ExerciseAttempt(models.Model):

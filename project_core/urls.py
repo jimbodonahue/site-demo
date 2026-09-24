@@ -28,10 +28,41 @@ sitemaps = {
     "static": StaticViewSitemap,
 }
 
+def _coming_soon(title: str, blurb: str):
+    return TemplateView.as_view(
+        template_name="coming_soon.html",
+        extra_context={"page_title": title, "page_blurb": blurb},
+    )
+
+
 urlpatterns = [
     path("", TemplateView.as_view(template_name="home.html"), name="home"),
     path("admin/", admin.site.urls),
     path("exercises/", include("apps.exercises.urls")),
+    path(
+        "forum/",
+        _coming_soon(
+            "Forum",
+            "Discuss exercises, share solutions, and ask questions. The community forum is on the way.",
+        ),
+        name="forum_placeholder",
+    ),
+    path(
+        "challenges/",
+        _coming_soon(
+            "Weekly Challenges",
+            "Timed practice problems and leaderboards are coming soon.",
+        ),
+        name="challenges_placeholder",
+    ),
+    path(
+        "data-zoo/",
+        _coming_soon(
+            "Data Zoo",
+            "Browse curated datasets across domains for practice and exploration. Opening soon.",
+        ),
+        name="data_zoo_placeholder",
+    ),
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap"),
     path("accounts/", include("apps.authentication.urls")),
     path("metrics/", include(("apps.metrics.urls", "metrics"), namespace="metrics")),

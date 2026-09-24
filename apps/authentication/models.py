@@ -125,13 +125,21 @@ class UserProfile(models.Model):
         max_length=64,
         blank=True,
         default="",
-        help_text=_("Preferred data science field for exercise datasets."),
+        help_text=_("Primary (rank-1) preferred data science field for exercise datasets."),
+    )
+    preferred_topics = models.JSONField(
+        blank=True,
+        default=list,
+        help_text=_(
+            "Up to five preferred Data Zoo topics in ranked order. "
+            "The first entry is the default used for new exercise attempts."
+        ),
     )
     dataset_file = models.CharField(
         max_length=200,
         blank=True,
         default="",
-        help_text=_("Selected parquet dataset file for this learner's exercises."),
+        help_text=_("Optional preferred parquet dataset file for the primary topic."),
     )
     exercise_progress = models.JSONField(
         blank=True,
@@ -152,4 +160,42 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return self.nickname
+
+    def ranked_topics(self) -> list[str]:
+        """Return unique preferred zoo topics in rank order (max 5)."""
+        from apps.exercises.data_zoo import DATA_SCIENCE_SECTORS
+
+        ranked: list[str] = []
+        raw = self.preferred_topics if isinstance(self.preferred_topics, list) else []
+        for item in raw:
+            topic = str(item or "").strip().lower()
+            if topic in DATA_SCIENCE_SECTORS and topic not in ranked:
+                ranked.append(topic)
+            if len(ranked) >= 5:
+                break
+        # Backward compatibility: older profiles only have data_field.
+        if not ranked:
+            legacy = str(self.data_field or "").strip().lower()
+            if legacy in DATA_SCIENCE_SECTORS:
+                ranked = [legacy]
+        return ranked
+
+    def primary_topic(self) -> str:
+        """Rank-1 preferred topic, or empty string if unset."""
+        ranked = self.ranked_topics()
+        return ranked[0] if ranked else ""
+
+    def set_ranked_topics(self, topics: list[str]) -> None:
+        """Store ranked topics and keep ``data_field`` synced to rank 1."""
+        from apps.exercises.data_zoo import DATA_SCIENCE_SECTORS
+
+        ranked: list[str] = []
+        for item in topics or []:
+            topic = str(item or "").strip().lower()
+            if topic in DATA_SCIENCE_SECTORS and topic not in ranked:
+                ranked.append(topic)
+            if len(ranked) >= 5:
+                break
+        self.preferred_topics = ranked
+        self.data_field = ranked[0] if ranked else ""
 

@@ -5,106 +5,170 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-FIRST_NAMES = [
-	"Ava",
-	"Ben",
-	"Chloe",
-	"Diego",
-	"Elena",
-	"Farah",
-	"Gabriel",
-	"Hannah",
-	"Ivan",
-	"Jade",
-	"Kai",
-	"Lina",
-	"Marco",
-	"Nina",
-	"Omar",
-	"Priya",
-	"Quinn",
-	"Rosa",
-	"Samir",
-	"Talia",
-	"Uma",
-	"Victor",
-	"Wendy",
-	"Xavier",
-	"Yuki",
-	"Zane",
-	"Amir",
-	"Bella",
-	"Carlos",
-	"Dana",
-]
+from apps.exercises.data_zoo import sample_zoo_dataframe
 
-LAST_NAMES = [
-	"Nguyen",
-	"Patel",
-	"Garcia",
-	"Smith",
-	"Kim",
-	"Lopez",
-	"Brown",
-	"Ali",
-	"Chen",
-	"Rossi",
-	"Silva",
-	"Murphy",
-	"Khan",
-	"Martin",
-	"Sato",
-]
+DEFAULT_SECTOR = "insurance"
+DEFAULT_DATASET_FILE = "01_medical_cost_personal_dataset.parquet"
+DEFAULT_ROWS = 80
 
-SELECTABLE_COLUMNS = [
-	"first_name",
-	"last_name",
+# Fallback column role hints when a zoo frame is unusually sparse.
+_PREFERRED_NUMERIC = (
 	"age",
+	"bmi",
+	"charges",
+	"children",
+	"trestbps",
+	"chol",
+	"thalach",
+	"admission_age",
+	"medication_cost",
+	"severity_score",
+	"length_of_stay_days",
+	"readmission_risk",
+)
+_PREFERRED_CATEGORICAL = (
 	"sex",
-	"insurance",
-	"blood_pressure",
-	"cholesterol",
+	"smoker",
 	"smoking_status",
+	"region",
 	"department",
-]
-
-NUMERIC_COLUMNS = ["age", "insurance", "blood_pressure", "cholesterol"]
-CATEGORICAL_COLUMNS = ["sex", "smoking_status", "department", "insurance"]
-SORTABLE_COLUMNS = [
-	"last_name",
-	"first_name",
-	"age",
-	"blood_pressure",
-	"cholesterol",
-	"insurance",
-	"department",
-]
+	"insurance_type",
+	"discharge_status",
+	"cp",
+)
 
 
-def build_patient_dataframe(rows: int = 80, seed: int = 42) -> pd.DataFrame:
-	"""Build a small patient table suited to introductory pandas tasks."""
-	rng = np.random.default_rng(seed)
-	n = max(10, int(rows))
-
-	first = rng.choice(FIRST_NAMES, size=n, replace=True)
-	last = rng.choice(LAST_NAMES, size=n, replace=True)
-
-	return pd.DataFrame(
-		{
-			"first_name": first,
-			"last_name": last,
-			"age": rng.integers(18, 90, size=n),
-			"sex": rng.choice(["female", "male"], size=n),
-			"insurance": rng.choice([0, 1], size=n, p=[0.45, 0.55]),
-			"blood_pressure": rng.integers(90, 180, size=n),
-			"cholesterol": rng.integers(120, 280, size=n),
-			"smoking_status": rng.choice(["never", "former", "current"], size=n),
-			"department": rng.choice(
-				["cardiology", "general", "endocrinology", "pulmonology"],
-				size=n,
-			),
-		}
+def _sector_from_state(**kwargs: Any) -> str:
+	sector = (
+		kwargs.get("data_field")
+		or kwargs.get("topic")
+		or kwargs.get("sector")
+		or DEFAULT_SECTOR
 	)
+	return str(sector).strip().lower() or DEFAULT_SECTOR
+
+
+def classify_intro_columns(df: pd.DataFrame) -> dict[str, list[str]]:
+	"""Split a zoo frame into numeric / categorical / selectable columns."""
+	numeric: list[str] = []
+	categorical: list[str] = []
+	for column in df.columns:
+		series = df[column]
+		if pd.api.types.is_bool_dtype(series):
+			categorical.append(str(column))
+			continue
+		if pd.api.types.is_numeric_dtype(series):
+			# Low-cardinality numerics behave better as categoricals for filters.
+			nunique = int(series.nunique(dropna=True))
+			if 1 < nunique <= 8 and not pd.api.types.is_float_dtype(series):
+				categorical.append(str(column))
+			else:
+				numeric.append(str(column))
+			continue
+		nunique = int(series.nunique(dropna=True))
+		if 1 < nunique <= 24:
+			categorical.append(str(column))
+
+	# Prefer well-known teaching columns when present.
+	numeric = [c for c in _PREFERRED_NUMERIC if c in numeric] + [
+		c for c in numeric if c not in _PREFERRED_NUMERIC
+	]
+	categorical = [c for c in _PREFERRED_CATEGORICAL if c in categorical] + [
+		c for c in categorical if c not in _PREFERRED_CATEGORICAL
+	]
+
+	if not numeric:
+		# Last resort: coerce object columns that look numeric.
+		for column in df.columns:
+			coerced = pd.to_numeric(df[column], errors="coerce")
+			if coerced.notna().mean() >= 0.8:
+				numeric.append(str(column))
+				df[column] = coerced
+
+	selectable = list(dict.fromkeys([*categorical, *numeric]))
+	sortable = list(dict.fromkeys([*numeric, *categorical]))
+	return {
+		"numeric": numeric,
+		"categorical": categorical,
+		"selectable": selectable,
+		"sortable": sortable,
+	}
+
+
+def _prepare_intro_frame(df: pd.DataFrame) -> pd.DataFrame:
+	"""Light cleanup so filters and summaries are stable."""
+	out = df.copy()
+	# Drop identifier-like columns with all-unique values (poor for filtering).
+	drop_cols = []
+	for column in out.columns:
+		series = out[column]
+		if pd.api.types.is_numeric_dtype(series):
+			continue
+		nunique = int(series.nunique(dropna=True))
+		if nunique >= max(40, int(0.9 * len(out))):
+			drop_cols.append(column)
+	if drop_cols and len(out.columns) - len(drop_cols) >= 3:
+		out = out.drop(columns=drop_cols)
+
+	# Fill remaining nulls so student filters stay simple.
+	for column in out.columns:
+		series = out[column]
+		if pd.api.types.is_numeric_dtype(series):
+			out[column] = series.fillna(series.median() if series.notna().any() else 0)
+		else:
+			mode = series.mode(dropna=True)
+			fill = mode.iloc[0] if not mode.empty else "unknown"
+			out[column] = series.fillna(fill).astype(str)
+
+	# Normalize common sex / smoker label spellings when present.
+	if "sex" in out.columns:
+		mapped = (
+			out["sex"]
+			.astype(str)
+			.str.strip()
+			.str.lower()
+			.replace({"0": "female", "1": "male", "f": "female", "m": "male"})
+		)
+		out["sex"] = mapped
+	if "smoker" in out.columns and "smoking_status" not in out.columns:
+		out = out.rename(columns={"smoker": "smoking_status"})
+		out["smoking_status"] = (
+			out["smoking_status"]
+			.astype(str)
+			.str.strip()
+			.str.lower()
+			.replace({"0": "no", "1": "yes", "false": "no", "true": "yes"})
+		)
+
+	roles = classify_intro_columns(out)
+	if len(roles["numeric"]) < 1 or len(roles["selectable"]) < 2:
+		# Fall back to generated healthcare zoo schema if the parquet is unusable.
+		from apps.exercises.data_zoo import build_zoo_dataset
+
+		out = build_zoo_dataset("healthcare", rows=max(40, len(out)), seed=42)
+	return out.reset_index(drop=True)
+
+
+def build_patient_dataframe(
+	rows: int = DEFAULT_ROWS,
+	seed: int = 42,
+	*,
+	data_field: str | None = None,
+	dataset_file: str | None = None,
+	topic: str | None = None,
+) -> pd.DataFrame:
+	"""Load a Data Zoo sample for the pandas introduction exercise."""
+	sector = _sector_from_state(data_field=data_field, topic=topic)
+	file_name = (dataset_file or "").strip()
+	if not file_name and sector == DEFAULT_SECTOR:
+		file_name = DEFAULT_DATASET_FILE
+	frame = sample_zoo_dataframe(
+		sector,
+		rows=max(10, int(rows)),
+		seed=seed,
+		dataset_file=file_name or None,
+	)
+	return _prepare_intro_frame(frame)
 
 
 def _human_column_list(columns: list[str]) -> str:
@@ -116,10 +180,6 @@ def _human_column_list(columns: list[str]) -> str:
 
 
 def _format_condition(column: str, operator: str, value: Any) -> str:
-	if column == "insurance" and operator == "==":
-		return "has insurance" if int(value) == 1 else "does not have insurance"
-	if column == "insurance" and operator == "!=":
-		return "does not have insurance" if int(value) == 1 else "has insurance"
 	if operator == "==":
 		if isinstance(value, str):
 			return f"{column} is '{value}'"
@@ -137,10 +197,15 @@ def _format_condition(column: str, operator: str, value: Any) -> str:
 	return f"{column} is {labels[operator]} {value}"
 
 
-def _pick_columns(rng: np.random.Generator, count: int | None = None) -> list[str]:
-	n = count if count is not None else int(rng.integers(1, 4))
-	chosen = list(rng.choice(SELECTABLE_COLUMNS, size=min(n, len(SELECTABLE_COLUMNS)), replace=False))
-	return [column for column in SELECTABLE_COLUMNS if column in chosen]
+def _pick_columns(
+	rng: np.random.Generator,
+	selectable: list[str],
+	count: int | None = None,
+) -> list[str]:
+	n = count if count is not None else int(rng.integers(1, min(4, len(selectable) + 1)))
+	n = max(1, min(n, len(selectable)))
+	chosen = list(rng.choice(selectable, size=n, replace=False))
+	return [column for column in selectable if column in chosen]
 
 
 def _apply_condition(frame: pd.DataFrame, column: str, operator: str, value: Any) -> pd.Series:
@@ -163,37 +228,40 @@ def _apply_condition(frame: pd.DataFrame, column: str, operator: str, value: Any
 def _choose_numeric_condition(
 	rng: np.random.Generator,
 	df: pd.DataFrame,
+	numeric_columns: list[str],
 	used_columns: set[str],
 	*,
 	inequality_only: bool = False,
 ) -> dict[str, Any]:
-	candidates = [col for col in NUMERIC_COLUMNS if col not in used_columns]
-	# Prefer continuous measures for inequality-focused hard tasks.
-	if inequality_only:
-		continuous = [col for col in candidates if col != "insurance"]
-		if continuous:
-			candidates = continuous
+	del inequality_only  # all numeric picks use inequalities / equality on ints
+	candidates = [col for col in numeric_columns if col not in used_columns]
+	if not candidates:
+		raise ValueError("No numeric columns available for a filter.")
 	column = str(rng.choice(candidates))
-	series = df[column]
-	if column == "insurance" and not inequality_only:
-		value = int(rng.choice([0, 1]))
-		operator = "=="
+	series = pd.to_numeric(df[column], errors="coerce")
+	low = float(series.quantile(0.25))
+	high = float(series.quantile(0.75))
+	if not np.isfinite(low) or not np.isfinite(high) or low == high:
+		low = float(series.min())
+		high = float(series.max())
+	if pd.api.types.is_integer_dtype(df[column]) or series.dropna().mod(1).eq(0).all():
+		low_i, high_i = int(np.floor(low)), int(np.ceil(high))
+		value: Any = int(rng.integers(low_i, high_i + 1)) if low_i < high_i else int(series.median())
 	else:
-		low, high = int(series.quantile(0.25)), int(series.quantile(0.75))
-		if low == high:
-			low = int(series.min())
-			high = int(series.max())
-		value = int(rng.integers(low, high + 1)) if low < high else int(series.median())
-		operator = str(rng.choice([">", ">=", "<", "<="]))
+		value = round(float(rng.uniform(low, high if high > low else low + 1.0)), 2)
+	operator = str(rng.choice([">", ">=", "<", "<="]))
 	return {"column": column, "operator": operator, "value": value}
 
 
 def _choose_categorical_condition(
 	rng: np.random.Generator,
 	df: pd.DataFrame,
+	categorical_columns: list[str],
 	used_columns: set[str],
 ) -> dict[str, Any]:
-	candidates = [col for col in CATEGORICAL_COLUMNS if col not in used_columns]
+	candidates = [col for col in categorical_columns if col not in used_columns]
+	if not candidates:
+		raise ValueError("No categorical columns available for a filter.")
 	column = str(rng.choice(candidates))
 	values = sorted({value for value in df[column].tolist()})
 	value = values[int(rng.integers(0, len(values)))]
@@ -205,22 +273,31 @@ def _choose_conditions(
 	rng: np.random.Generator,
 	df: pd.DataFrame,
 	count: int,
+	roles: dict[str, list[str]],
 	*,
 	require_inequality: bool = False,
 ) -> list[dict[str, Any]]:
 	conditions: list[dict[str, Any]] = []
 	used: set[str] = set()
+	numeric = roles["numeric"]
+	categorical = roles["categorical"]
 	for index in range(count):
-		if require_inequality and index == 0:
-			condition = _choose_numeric_condition(rng, df, used, inequality_only=True)
+		if require_inequality and index == 0 and numeric:
+			condition = _choose_numeric_condition(rng, df, numeric, used, inequality_only=True)
 		else:
 			prefer_numeric = index == 0 or rng.random() < 0.6
-			if prefer_numeric and any(col not in used for col in NUMERIC_COLUMNS):
-				condition = _choose_numeric_condition(rng, df, used)
+			if prefer_numeric and any(col not in used for col in numeric):
+				condition = _choose_numeric_condition(rng, df, numeric, used)
+			elif any(col not in used for col in categorical):
+				condition = _choose_categorical_condition(rng, df, categorical, used)
+			elif any(col not in used for col in numeric):
+				condition = _choose_numeric_condition(rng, df, numeric, used)
 			else:
-				condition = _choose_categorical_condition(rng, df, used)
+				break
 		conditions.append(condition)
 		used.add(condition["column"])
+	if not conditions:
+		raise ValueError("Could not build filter conditions from zoo columns.")
 	return conditions
 
 
@@ -231,43 +308,46 @@ def _mask_from_conditions(df: pd.DataFrame, conditions: list[dict[str, Any]]) ->
 	return mask
 
 
-def _choose_sort(rng: np.random.Generator, columns: list[str]) -> dict[str, Any]:
-	sortable = [col for col in columns if col in SORTABLE_COLUMNS] or list(SORTABLE_COLUMNS)
-	# Prefer last_name when available so alphabetized-name prompts show up often.
-	if "last_name" in sortable and rng.random() < 0.55:
-		column = "last_name"
-		ascending = True
-	else:
-		column = str(rng.choice(sortable))
-		ascending = bool(rng.choice([True, False])) if column != "last_name" else True
+def _choose_sort(
+	rng: np.random.Generator,
+	columns: list[str],
+	sortable: list[str],
+) -> dict[str, Any]:
+	pool = [col for col in columns if col in sortable] or list(sortable) or list(columns)
+	column = str(rng.choice(pool))
+	ascending = bool(rng.choice([True, False]))
 	return {"column": column, "ascending": ascending}
 
 
 def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
-	"""Build a large pool of single-variable summary prompts from the live frame."""
+	"""Build a large pool of single-variable summary prompts from the live zoo frame."""
+	roles = classify_intro_columns(df)
 	specs: list[dict[str, Any]] = []
 
-	for column in NUMERIC_COLUMNS:
-		if column == "insurance":
+	for column in roles["numeric"]:
+		series = pd.to_numeric(df[column], errors="coerce").dropna()
+		if series.empty:
 			continue
-		series = df[column]
+		as_int = series.dropna().mod(1).eq(0).all()
+		max_expected: Any = int(series.max()) if as_int else round(float(series.max()), 2)
+		min_expected: Any = int(series.min()) if as_int else round(float(series.min()), 2)
 		specs.extend(
 			[
 				{
 					"prompt": f"What is the maximum {column} in the dataset?",
-					"expected": int(series.max()),
+					"expected": max_expected,
 					"column": column,
 					"stat": "max",
 				},
 				{
 					"prompt": f"What is the minimum {column} in the dataset?",
-					"expected": int(series.min()),
+					"expected": min_expected,
 					"column": column,
 					"stat": "min",
 				},
 				{
 					"prompt": f"What is the median {column} in the dataset?",
-					"expected": float(series.median()),
+					"expected": float(series.median()) if not as_int else float(series.median()),
 					"column": column,
 					"stat": "median",
 				},
@@ -280,65 +360,16 @@ def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 			]
 		)
 
-	female_count = int((df["sex"] == "female").sum())
-	male_count = int((df["sex"] == "male").sum())
-	specs.extend(
-		[
-			{
-				"prompt": "How many patients in the dataset are women (sex == 'female')?",
-				"expected": female_count,
-				"column": "sex",
-				"stat": "count_value",
-			},
-			{
-				"prompt": "How many patients in the dataset are men (sex == 'male')?",
-				"expected": male_count,
-				"column": "sex",
-				"stat": "count_value",
-			},
-		]
-	)
-
-	for value in sorted(df["smoking_status"].unique()):
-		specs.append(
-			{
-				"prompt": f"How many patients have smoking_status '{value}'?",
-				"expected": int((df["smoking_status"] == value).sum()),
-				"column": "smoking_status",
-				"stat": "count_value",
-			}
-		)
-
-	for value in sorted(df["department"].unique()):
-		specs.append(
-			{
-				"prompt": f"How many patients are in the '{value}' department?",
-				"expected": int((df["department"] == value).sum()),
-				"column": "department",
-				"stat": "count_value",
-			}
-		)
-
-	insured = int((df["insurance"] == 1).sum())
-	uninsured = int((df["insurance"] == 0).sum())
-	specs.extend(
-		[
-			{
-				"prompt": "How many patients have insurance (insurance == 1)?",
-				"expected": insured,
-				"column": "insurance",
-				"stat": "count_value",
-			},
-			{
-				"prompt": "How many patients do not have insurance (insurance == 0)?",
-				"expected": uninsured,
-				"column": "insurance",
-				"stat": "count_value",
-			},
-		]
-	)
-
-	for column in ["sex", "smoking_status", "department", "last_name", "first_name"]:
+	for column in roles["categorical"]:
+		for value in sorted({v for v in df[column].tolist()}):
+			specs.append(
+				{
+					"prompt": f"How many rows have {column} equal to '{value}'?",
+					"expected": int((df[column] == value).sum()),
+					"column": column,
+					"stat": "count_value",
+				}
+			)
 		specs.append(
 			{
 				"prompt": f"How many unique values does the '{column}' column have?",
@@ -351,7 +382,7 @@ def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 	specs.extend(
 		[
 			{
-				"prompt": "How many rows (patients) are in the dataset?",
+				"prompt": "How many rows are in the dataset?",
 				"expected": int(len(df)),
 				"column": None,
 				"stat": "nrows",
@@ -362,30 +393,6 @@ def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 				"column": None,
 				"stat": "ncols",
 			},
-			{
-				"prompt": "What is the age of the oldest patient?",
-				"expected": int(df["age"].max()),
-				"column": "age",
-				"stat": "max",
-			},
-			{
-				"prompt": "What is the age of the youngest patient?",
-				"expected": int(df["age"].min()),
-				"column": "age",
-				"stat": "min",
-			},
-			{
-				"prompt": "What is the highest blood_pressure in the dataset?",
-				"expected": int(df["blood_pressure"].max()),
-				"column": "blood_pressure",
-				"stat": "max",
-			},
-			{
-				"prompt": "What is the lowest cholesterol in the dataset?",
-				"expected": int(df["cholesterol"].min()),
-				"column": "cholesterol",
-				"stat": "min",
-			},
 		]
 	)
 	return specs
@@ -393,6 +400,8 @@ def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 
 def _build_easy_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, Any]:
 	specs = _easy_summary_specs(df)
+	if not specs:
+		raise ValueError("No summary specs available for zoo frame.")
 	spec = specs[int(rng.integers(0, len(specs)))]
 	return {
 		"difficulty": "easy",
@@ -407,26 +416,15 @@ def _build_easy_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, An
 
 
 def _build_medium_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, Any]:
-	# One or two feature filters; return a focused column subset.
+	roles = classify_intro_columns(df)
 	condition_count = 1 if rng.random() < 0.7 else 2
-	conditions = _choose_conditions(rng, df, condition_count)
-	column_count = int(rng.integers(1, 4))  # 1–3 columns
-	preferred: list[str] = []
-	if rng.random() < 0.55:
-		preferred.append(str(rng.choice(["first_name", "last_name", "age"])))
-	remaining = [c for c in SELECTABLE_COLUMNS if c not in preferred]
-	need = max(0, column_count - len(preferred))
-	extra_cols = (
-		list(rng.choice(remaining, size=min(need, len(remaining)), replace=False)) if need else []
-	)
-	chosen = set(preferred[:column_count] + list(extra_cols))
-	columns = [c for c in SELECTABLE_COLUMNS if c in chosen][:column_count]
-	if not columns:
-		columns = _pick_columns(rng, count=2)
+	conditions = _choose_conditions(rng, df, condition_count, roles)
+	column_count = int(rng.integers(1, min(4, len(roles["selectable"]) + 1)))
+	columns = _pick_columns(rng, roles["selectable"], count=column_count)
 
 	working = df.loc[_mask_from_conditions(df, conditions), columns].copy().reset_index(drop=True)
 	prompt = (
-		f"Return a dataframe with the {_human_column_list(columns)} of all patients where "
+		f"Return a dataframe with the {_human_column_list(columns)} of all rows where "
 		+ " and ".join(_format_condition(c["column"], c["operator"], c["value"]) for c in conditions)
 		+ ". Assign the result to `df`."
 	)
@@ -443,29 +441,15 @@ def _build_medium_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, 
 
 
 def _build_hard_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, Any]:
-	# Inequality filter(s) + multi-column result + sort.
+	roles = classify_intro_columns(df)
 	condition_count = 1 if rng.random() < 0.65 else 2
-	conditions = _choose_conditions(rng, df, condition_count, require_inequality=True)
-	column_count = int(rng.integers(2, 5))
-	# Keep identity columns visible often for sorted patient lists.
-	must_have = []
-	if rng.random() < 0.75:
-		must_have.append("last_name")
-	if rng.random() < 0.45:
-		must_have.append("first_name")
-	if rng.random() < 0.55:
-		must_have.append("age")
-	remaining = [c for c in SELECTABLE_COLUMNS if c not in must_have]
-	need = max(0, column_count - len(must_have))
-	extra_cols = list(rng.choice(remaining, size=min(need, len(remaining)), replace=False)) if need else []
-	columns = [c for c in SELECTABLE_COLUMNS if c in set(must_have + list(extra_cols))]
-	if len(columns) < 2:
-		columns = _pick_columns(rng, count=3)
+	conditions = _choose_conditions(rng, df, condition_count, roles, require_inequality=True)
+	column_count = int(rng.integers(2, min(5, len(roles["selectable"]) + 1)))
+	columns = _pick_columns(rng, roles["selectable"], count=max(2, column_count))
 
-	sort_spec = _choose_sort(rng, columns)
+	sort_spec = _choose_sort(rng, columns, roles["sortable"])
 	if sort_spec["column"] not in columns:
 		columns = [sort_spec["column"]] + [c for c in columns if c != sort_spec["column"]]
-		columns = [c for c in SELECTABLE_COLUMNS if c in columns]
 
 	working = df.loc[_mask_from_conditions(df, conditions), columns].copy()
 	working = working.sort_values(
@@ -474,13 +458,9 @@ def _build_hard_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, An
 	).reset_index(drop=True)
 
 	direction = "ascending" if sort_spec["ascending"] else "descending"
-	if sort_spec["column"] == "last_name" and sort_spec["ascending"]:
-		sort_phrase = "alphabetized by last_name"
-	else:
-		sort_phrase = f"sorted by {sort_spec['column']} in {direction} order"
-
+	sort_phrase = f"sorted by {sort_spec['column']} in {direction} order"
 	prompt = (
-		f"Return a dataframe with the {_human_column_list(columns)} of all patients where "
+		f"Return a dataframe with the {_human_column_list(columns)} of all rows where "
 		+ " and ".join(_format_condition(c["column"], c["operator"], c["value"]) for c in conditions)
 		+ f", {sort_phrase}. Assign the result to `df`."
 	)
@@ -547,7 +527,6 @@ def dataframes_match(result_df: Any, expected_df: Any) -> bool:
 
 def pandas_intro_task_passes(task: dict[str, Any], df: Any = None, answer: Any = None) -> bool:
 	"""Validate either a summary scalar (`answer`) or a result dataframe (`df`)."""
-	mode = (task or {}).get("mode") or "subset"
-	if mode == "summary":
+	if task.get("mode") == "summary":
 		return scalars_match(answer, task.get("expected"))
 	return dataframes_match(df, task.get("expected_df"))

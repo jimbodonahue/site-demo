@@ -57,15 +57,15 @@ class UserProfileTests(TestCase):
 
         response = self.client.post(
             reverse("onboarding"),
-            {"data_field": "biostatistics", "dataset_file": "01_diabetes.parquet"},
+            {"data_field": "healthcare", "dataset_file": "01_heart_disease_cleveland.parquet"},
             follow=True,
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertRedirects(response, reverse("home"))
         user.profile.refresh_from_db()
-        self.assertEqual(user.profile.data_field, "biostatistics")
-        self.assertEqual(user.profile.dataset_file, "01_diabetes.parquet")
+        self.assertEqual(user.profile.data_field, "healthcare")
+        self.assertEqual(user.profile.dataset_file, "01_heart_disease_cleveland.parquet")
         self.assertTrue(user.profile.onboarding_complete)
 
     def test_user_can_create_profile_with_unique_nickname(self):

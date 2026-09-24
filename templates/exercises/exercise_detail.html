@@ -147,8 +147,9 @@
     {% if not user.is_authenticated %}
     <div class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100" role="status">
         <span class="font-semibold">Not signed in.</span>
-        <a href="{% url 'login' %}" class="font-semibold underline underline-offset-2 hover:text-amber-700 dark:hover:text-white">Log in</a>
-        to keep progress tied to your account.
+        You can
+        <a href="{% url 'login' %}" class="font-semibold underline underline-offset-2 hover:text-amber-700 dark:hover:text-white">sign in</a>
+        to keep progress across sessions.
     </div>
     {% endif %}
     
@@ -179,14 +180,17 @@
                 <div>
                     <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Data Features</p>
                     <h2 class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">Choose the scenario</h2>
-                    <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Select the dataset feature you want the notebook to start with.</p>
+                    <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Pick a zoo topic and difficulty. Clicking the current difficulty refreshes the dataset.</p>
                 </div>
                 <div id="topic-choice-wrap" class="hidden space-y-2">
-                    <label for="topic-choice-select" class="block text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">Select topic</label>
+                    <label for="topic-choice-select" class="block text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">Zoo topic</label>
                     <select id="topic-choice-select" class="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm font-medium text-slate-800 dark:text-slate-100 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"></select>
                 </div>
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">Difficulty</p>
+                    <div class="mb-2 flex items-baseline justify-between gap-2">
+                        <p class="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">Difficulty</p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">Click again to refresh data</p>
+                    </div>
                     <div id="feature-choice-list" class="space-y-2"></div>
                 </div>
             </aside>
@@ -594,27 +598,48 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         delete currentDataState.numeric_columns;
     }
 
-    async function resetExerciseForScenarioChange(overrides = {}) {
-        cells = starterCells.map((cell) => ({source: cell.source || ''}));
+    async function refreshScenario(overrides = {}) {
+        const response = await fetch(resetUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
+            },
+            body: JSON.stringify(overrides),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.error || 'Could not refresh the scenario.');
+        }
+        cells = (payload.cells || starterCells).map((cell) => ({source: cell.source || ''}));
         previousResults = [];
         cellExecutionCounts = {};
         globalExecutionCounter = 0;
-        currentDataState = Object.assign({}, currentDataState, overrides);
+        currentDataState = payload.data_state || currentDataState;
         clearCachedScenarioArtifacts();
         if (evaluationExplanationContainer) evaluationExplanationContainer.classList.add('hidden');
         if (evaluationChecksWrapper) evaluationChecksWrapper.classList.add('hidden');
         renderFeatureChoices();
         renderTopicChoices();
         renderSpotterTips();
+        renderTaskPrompt(payload.task_prompt);
         renderNotebook();
         renderOutputs([]);
         renderProgress(
-            {passed: false, completed_cells: 0, summary: 'Scenario updated. Notebook reset.'},
-            {passed: false, summary: 'Scenario updated. Notebook reset.', checks: []},
+            payload.progress || {passed: false, completed_cells: 0, summary: 'Refreshed with a new dataset.'},
+            payload.evaluation || {passed: false, summary: 'Refreshed with a new dataset.', checks: []},
             false
         );
-        await runNotebook(false);
         saveProgress();
+        return payload;
+    }
+
+    async function resetExerciseForScenarioChange(overrides = {}) {
+        try {
+            await refreshScenario(overrides);
+        } catch (error) {
+            console.error(error);
+        }
     }
 
     function renderTopicChoices() {
@@ -644,6 +669,7 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                 data_field: value,
                 topic: value,
                 selected_topic_label: label,
+                lock_topic: true,
             });
             if (window.AnonymousMetrics) {
                 window.AnonymousMetrics.trackFeatureSelect({
@@ -672,9 +698,14 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                 ? 'w-full rounded-2xl border-2 border-sky-500 bg-sky-50 dark:bg-sky-950/40 px-4 py-3 text-left text-sm font-medium text-sky-900 dark:text-sky-100 shadow-sm ring-2 ring-sky-200/80 dark:ring-sky-800/60'
                 : 'w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-left text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:border-sky-300 dark:hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-950/30 shadow-sm';
             button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-            button.innerHTML = `<span class="block font-semibold ${isActive ? 'text-sky-900 dark:text-sky-100' : 'text-slate-900 dark:text-white'}">${choice.label || `Choice ${index + 1}`}</span>${isActive ? '<span class="mt-1 block text-xs font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-400">Selected</span>' : ''}`;
+            button.title = isActive
+                ? 'Click again to refresh with a new dataset (50% chance to change topic)'
+                : 'Switch difficulty and load a fresh dataset';
+            const activeHint = isActive
+                ? '<span class="mt-1 block text-xs font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-400">Selected · click to refresh data</span>'
+                : '';
+            button.innerHTML = `<span class="block font-semibold ${isActive ? 'text-sky-900 dark:text-sky-100' : 'text-slate-900 dark:text-white'}">${choice.label || `Choice ${index + 1}`}</span>${activeHint}`;
             button.addEventListener('click', () => {
-                if (String(value) === String(currentDifficulty())) return;
                 resetExerciseForScenarioChange({
                     selected_feature: value,
                     selected_feature_label: choice.label || choice.value,
@@ -684,6 +715,7 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                     window.AnonymousMetrics.trackFeatureSelect({
                         value,
                         label: choice.label || choice.value,
+                        kind: 'difficulty',
                     });
                 }
             });
@@ -728,7 +760,7 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                         <div class="html-output dataframe-preview-wrap"></div>
                         <div class="value font-mono text-xs font-semibold text-blue-700 dark:text-sky-400"></div>
                         <div class="figures space-y-2"></div>
-                        <div class="error hidden whitespace-pre-wrap font-mono text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 p-2.5 rounded-lg"></div>
+                        <div class="error whitespace-pre-wrap font-mono text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 p-2.5 rounded-lg"></div>
                     </div>
                 </div>
             `;
@@ -783,14 +815,12 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         cells.splice(index + 1, 0, {source: ''});
         activeCellIndex = index + 1;
         renderNotebook();
-        renderOutputs(previousResults);
     }
 
     function addCell() {
         cells.push({source: ''});
         activeCellIndex = cells.length - 1;
         renderNotebook();
-        renderOutputs(previousResults);
     }
 
     function deleteCell(index) {
@@ -804,7 +834,6 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
             }
         }
         renderNotebook();
-        renderOutputs(previousResults);
         saveProgress();
     }
 
@@ -820,7 +849,6 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
 
         activeCellIndex = index - 1;
         renderNotebook();
-        renderOutputs(previousResults);
         saveProgress();
     }
 
@@ -836,7 +864,6 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
 
         activeCellIndex = index + 1;
         renderNotebook();
-        renderOutputs(previousResults);
         saveProgress();
     }
 
@@ -871,21 +898,24 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
             const figures = entry.wrapper.querySelector('.figures');
             const error = entry.wrapper.querySelector('.error');
             const promptHeader = entry.wrapper.querySelector('.output-prompt');
-            const cellOutput = entry.wrapper.querySelector('.cell-output');
 
-            const stdoutText = result.stdout || '';
-            stdout.textContent = stdoutText;
-            stdout.classList.toggle('hidden', !stdoutText);
-
+            stdout.textContent = result.stdout || '';
             if (htmlOutput) {
                 htmlOutput.innerHTML = result.html || '';
-                htmlOutput.classList.toggle('hidden', !result.html);
             }
-            const valueText = (!result.html && result.value_repr) ? `Result: ${result.value_repr}` : '';
-            value.textContent = valueText;
-            value.classList.toggle('hidden', !valueText);
-
+            value.textContent = (!result.html && result.value_repr) ? `Result: ${result.value_repr}` : '';
+            error.textContent = result.error ? result.error : '';
             figures.innerHTML = '';
+
+            const hasContent = result.stdout || result.html || result.value_repr || result.error || (result.figures && result.figures.length);
+            if (promptHeader) {
+                if (hasContent) {
+                    promptHeader.classList.remove('hidden');
+                } else {
+                    promptHeader.classList.add('hidden');
+                }
+            }
+
             (result.figures || []).forEach((figure, figureIndex) => {
                 const image = document.createElement('img');
                 image.alt = `Figure ${figureIndex + 1} for cell ${index + 1}`;
@@ -893,25 +923,6 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                 image.src = `data:${figure.mime_type};base64,${figure.base64}`;
                 figures.appendChild(image);
             });
-            figures.classList.toggle('hidden', !(result.figures && result.figures.length));
-
-            if (result.error) {
-                error.textContent = result.error;
-                error.classList.remove('hidden');
-            } else {
-                error.textContent = '';
-                error.classList.add('hidden');
-            }
-
-            const hasContent = Boolean(
-                stdoutText || result.html || valueText || result.error || (result.figures && result.figures.length)
-            );
-            if (promptHeader) {
-                promptHeader.classList.toggle('hidden', !hasContent);
-            }
-            if (cellOutput) {
-                cellOutput.classList.toggle('opacity-60', !hasContent);
-            }
         });
 
         let latestFigure = null;
@@ -1094,45 +1105,22 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         });
 
         const mode = showEvaluation ? 'evaluate' : 'run';
-        let response;
-        try {
-            response = await fetch(runUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
-                },
-                body: JSON.stringify({
-                    cells,
-                    data_state: currentDataState,
-                    previous_results: previousResults,
-                    mode,
-                    reveal_expected: hintsRevealed,
-                }),
-            });
-        } catch (error) {
-            progressSummary.textContent = 'Could not reach the notebook runner. Check your connection and try again.';
-            return;
-        }
+        const response = await fetch(runUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
+            },
+            body: JSON.stringify({
+                cells,
+                data_state: currentDataState,
+                previous_results: previousResults,
+                mode,
+                reveal_expected: hintsRevealed,
+            }),
+        });
 
-        let payload;
-        try {
-            payload = await response.json();
-        } catch (error) {
-            progressSummary.textContent = `Notebook runner returned an invalid response (HTTP ${response.status}).`;
-            return;
-        }
-
-        if (!response.ok) {
-            progressSummary.textContent = payload.error || payload.progress?.summary || `Notebook run failed (HTTP ${response.status}).`;
-            if (payload.cells) {
-                previousResults = payload.cells;
-                renderNotebook();
-                renderOutputs(payload.cells);
-            }
-            return;
-        }
-
+        const payload = await response.json();
         previousResults = payload.cells || [];
         if (payload.data_state) {
             currentDataState = payload.data_state;
@@ -1145,9 +1133,6 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         const evaluation = payload.evaluation || {};
         if (payload.soft_feedback && !showEvaluation) {
             evaluation.soft_feedback = payload.soft_feedback;
-        }
-        if (payload.error && !(payload.cells && payload.cells.length)) {
-            progressSummary.textContent = payload.error;
         }
         renderProgress(payload.progress || {summary: evaluation?.summary}, evaluation, showEvaluation);
         saveProgress();
@@ -1165,31 +1150,13 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
     }
 
     async function resetData() {
-        const response = await fetch(resetUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
-            },
-            body: JSON.stringify({}),
-        });
-
-        const payload = await response.json();
-        cells = payload.cells || starterCells.map((cell) => ({source: cell.source || ''}));
-        currentDataState = payload.data_state || structuredClone(initialData);
-        previousResults = [];
-        cellExecutionCounts = {};
-        globalExecutionCounter = 0;
-        evaluationExplanationContainer.classList.add('hidden');
-        evaluationChecksWrapper.classList.add('hidden');
-        renderTopicChoices();
-        renderFeatureChoices();
-        renderTaskPrompt(payload.task_prompt);
-        renderNotebook();
-        renderProgress(payload.progress, payload.evaluation, false);
-        renderOutputs([]);
-        if (window.AnonymousMetrics) {
-            window.AnonymousMetrics.trackReset({ cell_count: cells.length });
+        try {
+            await refreshScenario({});
+            if (window.AnonymousMetrics) {
+                window.AnonymousMetrics.trackReset({ cell_count: cells.length });
+            }
+        } catch (error) {
+            console.error(error);
         }
     }
 

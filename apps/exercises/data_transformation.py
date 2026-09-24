@@ -67,23 +67,79 @@ def _normalize_size_label(value: Any) -> str:
 	return SIZE_CANONICAL[key]
 
 
-def build_product_dataframe(rows: int = 90, seed: int = 42) -> pd.DataFrame:
-	"""Build a retail product table with messy categoricals that need transforming."""
-	rng = np.random.default_rng(seed)
-	n = max(30, int(rows))
+def build_product_dataframe(
+	rows: int = 90,
+	seed: int = 42,
+	*,
+	data_field: str | None = None,
+	dataset_file: str | None = None,
+	topic: str | None = None,
+) -> pd.DataFrame:
+	"""Build the retail teaching table from a Data Zoo sample.
 
-	price = np.round(rng.uniform(8.0, 220.0, size=n), 2)
-	# Sprinkle a few currency-formatted strings students may need to coerce on hard/medium paths.
-	# Easy tasks use the numeric `price` column after we store a clean float column.
+	Numeric / region / brand-like fields are drawn from the zoo frame when
+	possible; size/satisfaction/stock columns remain pedagogical overlays so
+	encoding drills stay intact.
+	"""
+	from apps.exercises.data_zoo import sample_zoo_dataframe
+
+	sector = str(data_field or topic or "retail").strip().lower() or "retail"
+	zoo = sample_zoo_dataframe(
+		sector,
+		rows=max(30, int(rows)),
+		seed=seed,
+		dataset_file=(dataset_file or None),
+	)
+	rng = np.random.default_rng(seed)
+	n = len(zoo)
+
+	def _numeric_series(*candidates: str, fallback: np.ndarray) -> np.ndarray:
+		for name in candidates:
+			if name in zoo.columns and pd.api.types.is_numeric_dtype(zoo[name]):
+				series = pd.to_numeric(zoo[name], errors="coerce")
+				if series.notna().any():
+					filled = series.fillna(series.median()).to_numpy()
+					return np.round(filled.astype(float), 2)
+		return fallback
+
+	def _category_series(*candidates: str, choices: list[str]) -> np.ndarray:
+		for name in candidates:
+			if name in zoo.columns:
+				series = zoo[name].astype(str).fillna("unknown")
+				# Keep cardinality manageable for encoding drills.
+				top = series.value_counts().head(max(3, len(choices))).index.tolist()
+				if len(top) >= 2:
+					return series.where(series.isin(top), top[0]).to_numpy()
+		return rng.choice(choices, size=n)
+
+	price = _numeric_series(
+		"unit_price",
+		"price",
+		"revenue",
+		"charges",
+		"payment_value",
+		fallback=np.round(rng.uniform(8.0, 220.0, size=n), 2),
+	)
+	units = _numeric_series(
+		"basket_size",
+		"units_sold",
+		"quantity",
+		"items",
+		fallback=rng.integers(1, 500, size=n).astype(float),
+	)
+	brands = _category_series("channel", "brand", "category", "segment", choices=BRANDS)
+	categories = _category_series("category", "channel", "segment", choices=CATEGORIES)
+	regions = _category_series("region", "market_segment", choices=REGIONS)
+
 	return pd.DataFrame(
 		{
 			"product_id": np.arange(1, n + 1),
-			"brand": rng.choice(BRANDS, size=n),
-			"category": rng.choice(CATEGORIES, size=n),
+			"brand": brands,
+			"category": categories,
 			"price": price,
-			"units_sold": rng.integers(1, 500, size=n),
+			"units_sold": np.clip(units, 1, None).astype(int),
 			"size_raw": rng.choice(SIZE_RAW_CHOICES, size=n),
-			"region": rng.choice(REGIONS, size=n),
+			"region": regions,
 			"satisfaction": rng.choice(SATISFACTION_LABELS, size=n),
 			"in_stock": rng.choice(["yes", "Yes", "YES", "no", "No", "NO"], size=n),
 		}

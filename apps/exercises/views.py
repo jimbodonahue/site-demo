@@ -12,6 +12,12 @@ from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView
 
 from apps.exercises.dataframe_providers import extract_task_prompt, enrich_data_state_visuals
+from apps.exercises.data_zoo import (
+	DATA_SCIENCE_SECTORS,
+	ZOO_BACKED_SOURCES,
+	default_sector_for_source,
+	refresh_scenario_state,
+)
 from apps.exercises.missing_values import DEFAULT_DATASET_FILE, DEFAULT_SECTOR
 from apps.exercises.rate_limit import check_rate_limit
 from apps.exercises.spotter_tips import get_spotter_tips
@@ -40,36 +46,101 @@ def _visitor_key(request):
 	return visitor_key
 
 
-def _profile_dataset_defaults(request) -> dict:
-	defaults = {
-		"data_field": DEFAULT_SECTOR,
-		"dataset_file": DEFAULT_DATASET_FILE,
-	}
+def _profile_topic_preference(request) -> str | None:
+	"""Return the learner's rank-1 zoo topic, if any."""
 	if not getattr(request, "user", None) or not request.user.is_authenticated:
-		return defaults
+		return None
 	profile = getattr(request.user, "profile", None)
 	if not profile:
-		return defaults
-	if profile.data_field:
-		defaults["data_field"] = profile.data_field
-	if profile.dataset_file:
-		defaults["dataset_file"] = profile.dataset_file
-	return defaults
+		return None
+	topic = (profile.primary_topic() or "").strip().lower()
+	if topic in DATA_SCIENCE_SECTORS:
+		return topic
+	return None
+
+
+def _profile_ranked_topics(request) -> list[str]:
+	"""Return the learner's ranked preferred topics (may be empty)."""
+	if not getattr(request, "user", None) or not request.user.is_authenticated:
+		return []
+	profile = getattr(request.user, "profile", None)
+	if not profile:
+		return []
+	return list(profile.ranked_topics())
+
+
+def _profile_dataset_file(request) -> str | None:
+	if not getattr(request, "user", None) or not request.user.is_authenticated:
+		return None
+	profile = getattr(request.user, "profile", None)
+	if not profile:
+		return None
+	file_name = (profile.dataset_file or "").strip()
+	return file_name or None
 
 
 def _with_dataset_selection(request, data_state: dict | None, exercise: Exercise | None = None) -> dict:
+	"""Apply zoo topic defaults: profile rank-1 preference first, else exercise default."""
 	state = deepcopy(data_state or {})
 	source = (
 		state.get("dataframe_source")
 		or (exercise.data_definition.get("dataframe_source") if exercise else None)
 		or ""
 	)
-	if source != "missing_values":
+	source = str(source).strip()
+	if source not in ZOO_BACKED_SOURCES:
 		return state
-	defaults = _profile_dataset_defaults(request)
-	state.setdefault("data_field", defaults["data_field"])
-	state.setdefault("dataset_file", defaults["dataset_file"])
+
+	preferred_topic = _profile_topic_preference(request)
+	exercise_default = default_sector_for_source(source)
+
+	if not (state.get("data_field") or state.get("topic")):
+		topic = preferred_topic or exercise_default
+		state["data_field"] = topic
+		state["topic"] = topic
+
+	# Prefer the profile dataset file only when it matches the chosen topic.
+	if not state.get("dataset_file"):
+		profile_file = _profile_dataset_file(request)
+		topic = str(state.get("data_field") or state.get("topic") or "").strip().lower()
+		if profile_file and preferred_topic and topic == preferred_topic:
+			state["dataset_file"] = profile_file
+		elif source == "missing_values" and topic == DEFAULT_SECTOR:
+			state["dataset_file"] = DEFAULT_DATASET_FILE
+
 	return state
+
+
+def _apply_refresh_overrides(state: dict, payload: dict | None, request=None) -> dict:
+	"""Refresh seed/dataset (and maybe topic), honoring explicit client overrides."""
+	body = payload or {}
+	explicit_topic = body.get("data_field") or body.get("topic")
+	lock_topic = bool(body.get("lock_topic") or body.get("keep_topic") or body.get("force_topic"))
+	preferred = _profile_ranked_topics(request) if request is not None else []
+
+	if explicit_topic and lock_topic:
+		refreshed = refresh_scenario_state(
+			state,
+			force_topic=str(explicit_topic),
+			change_topic_probability=0.0,
+			preferred_topics=preferred,
+		)
+	else:
+		refreshed = refresh_scenario_state(
+			state,
+			change_topic_probability=0.5,
+			preferred_topics=preferred,
+		)
+
+	difficulty = body.get("difficulty") or body.get("selected_feature")
+	if difficulty:
+		refreshed["difficulty"] = difficulty
+		refreshed["selected_feature"] = difficulty
+		if body.get("selected_feature_label"):
+			refreshed["selected_feature_label"] = body["selected_feature_label"]
+	if body.get("selected_topic_label"):
+		refreshed["selected_topic_label"] = body["selected_topic_label"]
+	return refreshed
 
 
 def _data_state_for_storage(data_state: dict | None) -> dict:
@@ -313,9 +384,44 @@ def reset_exercise(request, slug):
 	rejected = _reject_placeholder(exercise)
 	if rejected:
 		return rejected
+	payload = json.loads(request.body or b"{}")
 	attempt = _get_attempt(request, exercise)
-	attempt.reset_to_baseline()
-	attempt.data_state = _with_dataset_selection(request, attempt.data_state, exercise)
+
+	base_state = _with_dataset_selection(
+		request,
+		attempt.data_state or exercise.initial_data_state(),
+		exercise,
+	)
+	source = str(
+		base_state.get("dataframe_source")
+		or (exercise.data_definition or {}).get("dataframe_source")
+		or ""
+	).strip()
+
+	if source in ZOO_BACKED_SOURCES:
+		# Keep current scenario settings as the base, then refresh seed/dataset
+		# (and maybe topic). Difficulty/topic overrides come from the client.
+		refreshed = _apply_refresh_overrides(base_state, payload, request=request)
+		refreshed = _with_dataset_selection(request, refreshed, exercise)
+		summary = "Refreshed with a new dataset. Notebook reset."
+	else:
+		# Non-zoo exercises: restore the authored baseline, then apply difficulty overrides.
+		refreshed = deepcopy(exercise.initial_data_state())
+		difficulty = payload.get("difficulty") or payload.get("selected_feature")
+		if difficulty:
+			refreshed["difficulty"] = difficulty
+			refreshed["selected_feature"] = difficulty
+		summary = "Reset to the original starting state."
+
+	attempt.notebook_state = exercise.starter_cells()
+	attempt.data_state = _data_state_for_storage(refreshed)
+	attempt.result_state = {}
+	attempt.progress_state = {
+		"passed": False,
+		"completed_cells": 0,
+		"message": summary,
+		"summary": summary,
+	}
 	attempt.save()
 	_save_personal_exercise_progress(request, exercise, attempt)
 	visual_state = enrich_data_state_visuals(attempt.data_state)
@@ -326,7 +432,11 @@ def reset_exercise(request, slug):
 			"data_state": visual_state,
 			"task_prompt": extract_task_prompt(attempt.data_state),
 			"progress": attempt.progress_state,
-			"evaluation": {"passed": False, "summary": "Reset to the original starting state.", "checks": []},
+			"evaluation": {
+				"passed": False,
+				"summary": summary,
+				"checks": [],
+			},
 		}
 	)
 

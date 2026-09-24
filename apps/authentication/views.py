@@ -46,6 +46,7 @@ def onboarding(request):
                 profile_obj.save()
             profile_obj.data_field = form.cleaned_data["data_field"]
             profile_obj.dataset_file = form.cleaned_data["dataset_file"]
+            profile_obj.set_ranked_topics([form.cleaned_data["data_field"]])
             profile_obj.onboarding_complete = True
             profile_obj.save()
             messages.success(request, "Your exercise preferences have been saved.")
@@ -53,7 +54,7 @@ def onboarding(request):
     else:
         form = UserOnboardingForm(
             initial={
-                "data_field": profile_obj.data_field or "biostatistics",
+                "data_field": profile_obj.data_field or "healthcare",
                 "dataset_file": profile_obj.dataset_file or "",
             }
         )

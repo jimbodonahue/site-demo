@@ -18,8 +18,8 @@ from apps.exercises.data_zoo import load_zoo_dataset_file
 
 CACHE_DIR = Path(__file__).resolve().parent / "zoo_data" / "_missing_values_cache"
 UNAVAILABLE_MESSAGE = "This data set is unavailable."
-DEFAULT_SECTOR = "biostatistics"
-DEFAULT_DATASET_FILE = "01_diabetes.parquet"
+DEFAULT_SECTOR = "healthcare"
+DEFAULT_DATASET_FILE = "01_heart_disease_cleveland.parquet"
 
 
 class DatasetUnavailableError(ValueError):
