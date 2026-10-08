@@ -1,0 +1,22 @@
+{
+  "success_message": "Nice work. Your pandas result matches the task.",
+  "failure_message": "Your solution does not match yet. Follow the next action below.",
+  "graders": [
+    {
+      "id": "required_df",
+      "type": "required_variable",
+      "next_action": "Keep working in `df` (and `answer` on summary tasks)."
+    },
+    {
+      "id": "required_task",
+      "type": "required_variable",
+      "next_action": "Reload the exercise if `task` is missing."
+    },
+    {
+      "id": "pandas_core",
+      "type": "assertion",
+      "next_action": "Recompute from `df` \u2014 assign `answer` for summaries or filter/sort `df` for subset tasks.",
+      "failure_message": "Result does not match the task yet."
+    }
+  ]
+}

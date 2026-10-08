@@ -1,0 +1,21 @@
+{
+  "success_message": "Nice work. Your descriptive statistics match the expected summaries.",
+  "failure_message": "Your answers do not match yet. Recompute the requested summaries.",
+  "graders": [
+    {
+      "id": "required_answer",
+      "type": "required_variable",
+      "next_action": "Store results in `answer` (dict of q1/q2/...)."
+    },
+    {
+      "id": "desc_core",
+      "type": "assertion",
+      "next_action": "Fill every required `answer` key from df summaries; set `plotted=True` when a plot is required."
+    },
+    {
+      "id": "summary_approach",
+      "type": "ast_process",
+      "next_action": "Compute summaries with pandas/numpy stats APIs rather than hard-coding."
+    }
+  ]
+}

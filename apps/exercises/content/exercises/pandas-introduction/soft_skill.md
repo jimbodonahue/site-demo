@@ -1,0 +1,1 @@
+Give an example of a business use case where the particular prompt would be useful, including who would ask for it and what decision they might be making. If you can't think of one, feel free to suggest a different query that would be more useful, and explain why.

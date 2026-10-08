@@ -1,13 +1,14 @@
+# Slim requirements for PythonAnywhere / size-capped hosting (~500MB with .venv).
+# Omitted vs full django-site: scikit-learn, xgboost, seaborn (and their scipy/nvidia/pyarrow pull).
+# ML track exercises are disabled in migration 0025_lite_disable_ml_track.
 Django==6.0.1
 Markdown==3.8.2
 Pillow==11.3.0
+bleach==6.4.0
 gunicorn==24.0.0
 matplotlib==3.11.1
 numpy==2.5.1
 pandas==3.0.5
 python-dotenv==1.2.1
 psycopg2-binary==2.9.11
-djangorestframework==3.16.1
-djangorestframework-simplejwt==5.5.1
-django-cors-headers==4.9.0
 whitenoise==6.12.0

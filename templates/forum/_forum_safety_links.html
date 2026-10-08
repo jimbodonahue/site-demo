@@ -1,0 +1,8 @@
+<div class="flex flex-wrap items-center gap-2">
+  <a href="{% url 'forum:code_of_conduct' %}" class="inline-flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition">
+    Code of Conduct
+  </a>
+  <a href="{% url 'forum:alert_admin' %}?from={{ request.get_full_path|urlencode }}" class="inline-flex items-center gap-1.5 rounded-full border border-amber-600/60 bg-amber-950/40 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-900/50 transition">
+    Alert Admin
+  </a>
+</div>

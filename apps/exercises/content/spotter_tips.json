@@ -1,0 +1,267 @@
+{
+  "pandas_intro": {
+    "easy": [
+      "df['column'].mean()",
+      "df['column'].median()",
+      "df['column'].max()  # or .min()",
+      "(df['column'] == value).sum()",
+      "answer = \u2026",
+      "plt.plot(df['column'])  # plotting bonus: any chart"
+    ],
+    "medium": [
+      "mask = df['column'] > value",
+      "df.loc[mask, ['col_a', 'col_b']]",
+      "df = result.reset_index(drop=True)",
+      "plt.scatter(..., color='teal')  # +1 style change"
+    ],
+    "hard": [
+      "df.sort_values('column', ascending=False)",
+      "df.loc[mask].sort_values('column').reset_index(drop=True)",
+      "# combine filter + sort in one pipeline",
+      "plt.plot(..., color='navy', marker='o'); plt.title('\u2026', fontsize=12)"
+    ]
+  },
+  "data_transformation": {
+    "easy": [
+      "df.loc[df['column'] <= threshold, ['col_a', 'col_b']]",
+      "df0 = \u2026; df1 = \u2026; df2 = \u2026",
+      "result.reset_index(drop=True)",
+      "plt.bar(labels, values)  # plotting bonus"
+    ],
+    "medium": [
+      "series.map(mapping_dict)",
+      "series.apply(lambda x: \u2026)",
+      "series.str.strip().str.lower()",
+      "df0 / df1 / df2 with encoded columns",
+      "plt.bar(..., color='orchid')"
+    ],
+    "hard": [
+      "pd.get_dummies(df['column'], prefix='\u2026')",
+      "# bit columns via integer codes & bitwise ops",
+      "category_to_code = {'label': 1, \u2026}",
+      "df.merge(df_extra, on='product_id', how='left')  # join drills",
+      "plt.bar(..., color='steelblue'); plt.xlabel('\u2026', fontsize=11)"
+    ]
+  },
+  "messy_dataset": {
+    "easy": [
+      "df.columns = df.iloc[0]; df = df.iloc[1:]",
+      "df.dropna(how='all')",
+      "df.drop_duplicates()",
+      "series.map(task['word_to_int'])",
+      "plt.hist(df['column'])  # plotting bonus"
+    ],
+    "medium": [
+      "repair_messy_number(value)",
+      "df.drop(columns=[c for c in df.columns if c.endswith('_dup')])",
+      "df.merge(df_extra, on='key_column', how='left')",
+      "plt.hist(..., color='seagreen')"
+    ],
+    "hard": [
+      "df['key'] = pd.to_numeric(df['key'], errors='coerce')",
+      "# align dtypes on both sides before the merge",
+      "df_extra['key'] = df_extra['key'].astype(df['key'].dtype)",
+      "plt.hist(..., color='slateblue'); plt.title('\u2026', fontsize=12)"
+    ]
+  },
+  "ab_testing": {
+    "easy": [
+      "welch_ttest(group_a, group_b)",
+      "result['p_value']",
+      "different = p_value < 0.05",
+      "# bonus: plt.hist(group_a, alpha=0.5); plt.hist(group_b, alpha=0.5)  OR  plt.violinplot([...])"
+    ],
+    "medium": [
+      "# Bayes: P(A|B) = P(B|A) * P(A) / P(B)",
+      "P(B) = P(B|A)*P(A) + P(B|not A)*P(not A)",
+      "answer = posterior",
+      "plt.hist(..., alpha=0.5, color='tomato')  # or violinplot with color"
+    ],
+    "hard": [
+      "relevant = \u2026  # practical + statistical judgment",
+      "# a non-significant p-value can still look 'close'",
+      "# weigh mean gap against noise / effect size",
+      "plt.hist(..., alpha=0.45, color='navy'); plt.title('\u2026', fontsize=12)"
+    ]
+  },
+  "descriptive_statistics": {
+    "easy": [
+      "df['column'].mean()",
+      "df['column'].median()",
+      "df['column'].mode().iloc[0]  # not for float columns here",
+      "df['column'].std()  # sample SD",
+      "df['column'].var()",
+      "answer = {'q1': \u2026, 'q2': \u2026}",
+      "plt.boxplot(df['column'])  # plotting bonus"
+    ],
+    "medium": [
+      "df.groupby('group_col')['value_col'].mean()",
+      "grouped.median()",
+      "grouped.std()",
+      "(means - medians).abs().idxmax()",
+      "answer = {'q1': 'group_label', \u2026}",
+      "plt.boxplot(..., patch_artist=True);  # set color / font for bonus"
+    ],
+    "hard": [
+      "plt.hist(df['column'])  # then plotted = True",
+      "df['column'].round().mode().iloc[0]",
+      "df.corr()",
+      "plt.imshow(df.select_dtypes('number').corr())",
+      "plotted = True",
+      "plt.boxplot(..., widths=0.5); plt.title('\u2026', fontsize=12)  # bonus"
+    ]
+  },
+  "data_quality": {
+    "easy": [
+      "df[target].isna().sum()",
+      "df[target] = df[target].fillna(df[target].median())",
+      "# or .mean() / a constant",
+      "missing = df.isna().sum(); plt.bar(missing.index, missing.values)"
+    ],
+    "medium": [
+      "df.groupby(outcome)[target].transform('median')",
+      "df[target] = df[target].fillna(grouped_fill)",
+      "# impute using the outcome groups",
+      "plt.bar(..., color='crimson')  # missingness bonus"
+    ],
+    "hard": [
+      "# build a mask from related columns / self-patterns",
+      "df.loc[mask, target] = fill_values",
+      "# finish remaining gaps after conditional fills",
+      "plt.bar(..., color='indigo'); plt.xticks(rotation=45, fontsize=9)"
+    ]
+  },
+  "missing_values": {
+    "easy": [
+      "df[target].isna().sum()",
+      "df[target] = df[target].fillna(df[target].median())",
+      "# or .mean() / a constant",
+      "missing = df.isna().sum(); plt.bar(missing.index, missing.values)"
+    ],
+    "medium": [
+      "df.groupby(outcome)[target].transform('median')",
+      "df[target] = df[target].fillna(grouped_fill)",
+      "# impute using the outcome groups",
+      "plt.bar(..., color='crimson')  # missingness bonus"
+    ],
+    "hard": [
+      "# build a mask from related columns / self-patterns",
+      "df.loc[mask, target] = fill_values",
+      "# finish remaining gaps after conditional fills",
+      "plt.bar(..., color='indigo'); plt.xticks(rotation=45, fontsize=9)"
+    ]
+  },
+  "ml_data_prep": {
+    "easy": [
+      "X_train.mean(); y_train.mean()",
+      "answer['split_quality'] = 'good'  # or 'bad'",
+      "answer['train_target_mean'] = round(float(y_train.mean()), 4)",
+      "plt.imshow(X_train.corr())  # plotting bonus heatmap"
+    ],
+    "medium": [
+      "pd.get_dummies(df.drop(columns=[target]))",
+      "sklearn.model_selection.train_test_split(..., random_state=seed)",
+      "answer['means'] = [{'seed': …, 'train_target_mean': …, 'test_target_mean': …}, …]",
+      "plt.imshow(..., cmap='viridis')"
+    ],
+    "hard": [
+      "sklearn.preprocessing.StandardScaler()  # or MinMaxScaler",
+      "sklearn.model_selection.KFold(n_splits=K, shuffle=True)",
+      "answer['fold_means'] = [{'fold': 0, …}, …]; answer['scaler'] = 'standard'",
+      "plt.imshow(...); plt.title('…', fontsize=12)"
+    ]
+  },
+  "ml_regression": {
+    "easy": [
+      "sklearn.linear_model.LinearRegression()",
+      "sklearn.tree.DecisionTreeRegressor(max_depth=4)",
+      "answer['best_model'] = 'linear'  # or 'tree'",
+      "plt.scatter(x, y); plt.plot(x, preds)  # or sklearn.tree.plot_tree"
+    ],
+    "medium": [
+      "sklearn.preprocessing.PolynomialFeatures(degree=d)",
+      "for depth in range(3, 9): …",
+      "answer['best_param'] = …; answer['score'] = …",
+      "plt.scatter(..., color='teal')"
+    ],
+    "hard": [
+      "scaler.fit_transform(X_train)",
+      "answer['metric'] / answer['score'] / answer['family']",
+      "sklearn.tree.plot_tree(model); plt.title('…', fontsize=12)"
+    ]
+  },
+  "ml_classification": {
+    "easy": [
+      "sklearn.tree.DecisionTreeClassifier(max_depth=4)",
+      "sklearn.linear_model.LogisticRegression(max_iter=500)",
+      "sklearn.svm.SVC(kernel='rbf')",
+      "sklearn.metrics.confusion_matrix(y_test, preds); plt.imshow(…)"
+    ],
+    "medium": [
+      "for depth / penalty / kernel in …: fit and score",
+      "sklearn.metrics.f1_score / precision_score / accuracy_score",
+      "answer['best_param'] = …; answer['score'] = …",
+      "plt.imshow(..., cmap='Blues')"
+    ],
+    "hard": [
+      "StandardScaler / MinMaxScaler before the chosen model",
+      "answer['family'], answer['scaler'], answer['score']",
+      "plt.imshow(...); plt.colorbar(); plt.title('…', fontsize=11)"
+    ]
+  },
+  "ml_advanced_classification": {
+    "easy": [
+      "answer['metrics'] = {'tree': {…}, 'logreg': {…}, 'svm': {…}}",
+      "answer['most_important_metric'] = 'recall'",
+      "sklearn.metrics.ConfusionMatrixDisplay.from_predictions(…)"
+    ],
+    "medium": [
+      "LogisticRegression(class_weight='balanced')",
+      "proba = model.predict_proba(X_test)[:, 1]",
+      "preds = (proba >= threshold).astype(int)",
+      "plt.imshow(...); plt.title('…')"
+    ],
+    "hard": [
+      "sklearn.model_selection.cross_val_predict(..., cv=3)",
+      "sklearn.calibration.CalibratedClassifierCV(...)",
+      "answer['macro_f1'] / answer['micro_f1']; answer['calibrated'] = True",
+      "plt.imshow(...); plt.colorbar(); plt.title('…', fontsize=12)"
+    ]
+  },
+  "ml_ensembles": {
+    "easy": [
+      "sklearn.ensemble.RandomForestClassifier(n_estimators=25, max_depth=4, n_jobs=1)",
+      "xgboost.XGBClassifier(n_estimators=25, max_depth=3)",
+      "answer['best_model'] = 'random_forest'  # or 'xgboost'",
+      "plt.imshow(confusion)"
+    ],
+    "medium": [
+      "for max_depth / learning_rate in candidate_values: fit and score",
+      "answer['best_params'] = {…}; answer['score'] = …",
+      "plt.imshow(..., cmap='Oranges')"
+    ],
+    "hard": [
+      "scale features; optionally drop low-variance columns",
+      "answer['family'], answer['scaler'], answer['dropped_columns'], answer['score']",
+      "plt.imshow(...); plt.title('…', fontsize=12)"
+    ]
+  },
+  "ml_unsupervised": {
+    "easy": [
+      "sklearn.preprocessing.StandardScaler().fit_transform(X)",
+      "sklearn.cluster.KMeans(n_clusters=K, n_init=10, random_state=…)",
+      "answer['cluster_sizes'] / answer['cluster_means']",
+      "plt.scatter(x, y, c=labels)"
+    ],
+    "medium": [
+      "for k in range(…): silhouette_score(X_scaled, labels)",
+      "answer['best_k'] = …",
+      "plt.scatter(..., c=labels, cmap='tab10')"
+    ],
+    "hard": [
+      "sklearn.decomposition.PCA(n_components=2)",
+      "compare silhouette / cluster means in original vs PCA space",
+      "plt.scatter(...); plt.title('…', fontsize=12)"
+    ]
+  }
+}

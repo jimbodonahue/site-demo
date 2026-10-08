@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Code of Conduct | Forum{% endblock %}
+{% block meta_description %}Jim's Data Gym Code of Conduct — community standards for respectful, inclusive learning.{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl mx-auto py-8 px-4 space-y-8">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Forum</p>
+      <h1 class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">Jim's Data Gym Code of Conduct</h1>
+      <p class="mt-3 text-slate-600 dark:text-slate-300">
+        Welcome! We believe that everyone deserves respect, regardless of who you are. That means you're welcome here!
+        Our goal is to foster an inclusive, respectful, and collaborative environment.
+      </p>
+    </div>
+    <div class="flex flex-col items-stretch gap-2">
+      <a href="{% url 'forum:index' %}" class="text-sm font-semibold text-sky-600 dark:text-sky-400 hover:underline text-right">&larr; Back to Forum</a>
+      <a href="{% url 'forum:alert_admin' %}?from={{ request.get_full_path|urlencode }}" class="inline-flex items-center justify-center rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500">
+        Alert Admin
+      </a>
+    </div>
+  </div>
+
+  {% if forum_suspended %}
+  <div class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100">
+    Your forum participation is currently suspended. You can still practice exercises and use Alert Admin if you need help.
+  </div>
+  {% endif %}
+
+  <article class="space-y-8 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+    <section class="space-y-3">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Core Values</h2>
+      <ul class="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+        <li><strong class="text-slate-900 dark:text-white">Respect:</strong> Acknowledge and celebrate diverse perspectives. Our differences make us interesting and bring new ideas.</li>
+        <li><strong class="text-slate-900 dark:text-white">Inclusion:</strong> Avoid discrimination of all types (on basis of race, gender, religion, sexual orientation, country of origin, skill level in programming, English, data science, etc., economic status, neurodivergence, etc.).</li>
+        <li><strong class="text-slate-900 dark:text-white">Empathy:</strong> Treat each other with kindness, especially those who may feel marginalized or less confident.</li>
+      </ul>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Discrimination</h2>
+      <p class="text-sm text-slate-700 dark:text-slate-300">
+        Our community is built on mutual respect. Discrimination and harassment are strictly prohibited and will not be tolerated.
+        Posts may be removed, temporarily or permanently, to ensure that this remains a safe space for everyone.
+        Repeated violators will be banned from the forum.
+      </p>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Intellectual Property</h2>
+      <p class="text-sm text-slate-700 dark:text-slate-300">
+        Please cite your sources, academic or otherwise. Give each other credit for the good ideas that you've found, and celebrate each other's achievements.
+      </p>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Cyberbullying &amp; Doxing</h2>
+      <p class="text-sm text-slate-700 dark:text-slate-300">
+        Please refrain from posting the personal data of others, or trying to contact them outside the platform without explicit permission.
+      </p>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Cultivating a Positive Environment</h2>
+      <p class="text-sm text-slate-700 dark:text-slate-300">
+        Please consciously try to support and encourage other members. Realize that we come from a variety of backgrounds, and that others bring unique perspectives, as well as their own challenges.
+        When possible, actively seek out opportunities to compliment and encourage your fellow learners. Keep all criticism constructive.
+        For example, rather than saying, "You did this wrong," suggest improvements or resources. A better alternative is,
+        "There is a really good blog post that might help you with that topic."
+      </p>
+      <p class="text-sm text-slate-700 dark:text-slate-300">
+        Additionally, please try to embrace inclusive language, when possible.
+      </p>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Reporting Concerns</h2>
+      <p class="text-sm text-slate-700 dark:text-slate-300">
+        If you or another member is harmed by misconduct, report it confidentially using the
+        <a href="{% url 'forum:alert_admin' %}?from={{ request.get_full_path|urlencode }}" class="font-semibold text-sky-600 dark:text-sky-400 hover:underline">Alert Admin</a>
+        button. A moderator will investigate promptly.
+      </p>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Consequences of Violations</h2>
+      <ul class="list-disc list-inside space-y-1 text-sm text-slate-700 dark:text-slate-300">
+        <li><strong class="text-slate-900 dark:text-white">First offense:</strong> Written warning, deleted post(s).</li>
+        <li><strong class="text-slate-900 dark:text-white">Repeated violations:</strong> Temporary ban, suspension, or permanent expulsion from the forum.</li>
+      </ul>
+      <p class="text-sm text-slate-700 dark:text-slate-300">
+        Forum suspension does not remove access to exercises. We take these policies seriously to ensure a safe space for all learners.
+      </p>
+    </section>
+
+    <section class="space-y-2 border-t border-slate-200 dark:border-slate-700 pt-6">
+      <p class="text-sm text-slate-700 dark:text-slate-300">
+        Questions? Contact: <a href="mailto:admin@jimsdatagym.com" class="font-semibold text-sky-600 dark:text-sky-400 hover:underline">admin@jimsdatagym.com</a>
+      </p>
+      <p class="text-sm text-slate-700 dark:text-slate-300">
+        We have the chance to make great connections, share wonderful resources, and learn incredible things. Let's help each other become better data people!
+      </p>
+    </section>
+  </article>
+</section>
+{% endblock %}

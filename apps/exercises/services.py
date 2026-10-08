@@ -14,6 +14,8 @@ import types
 from contextlib import redirect_stdout
 from copy import deepcopy
 
+from apps.exercises.ab_testing import ab_testing_passes, prepare_ab_testing, welch_ttest
+from apps.exercises.data_quality import data_quality_cleanup_passes, introduce_data_quality_issues
 from apps.exercises.data_transformation import (
 	build_product_dataframe,
 	data_transformation_passes,
@@ -24,6 +26,50 @@ from apps.exercises.dataframe_providers import (
 	dataframe_head_html,
 	prepare_exercise_namespace,
 )
+from apps.exercises.descriptive_statistics import (
+	descriptive_statistics_passes,
+	prepare_descriptive_statistics,
+)
+from apps.exercises.markdown_utils import render_markdown_html
+from apps.exercises.messy_dataset import messy_dataset_passes, prepare_messy_dataset, repair_messy_number
+from apps.exercises.missing_values import (
+	DatasetUnavailableError,
+	UNAVAILABLE_MESSAGE,
+	missing_values_imputation_passes,
+)
+try:
+	from apps.exercises.ml_advanced_classification import (
+		ml_advanced_classification_passes,
+		prepare_ml_advanced_classification,
+	)
+	from apps.exercises.ml_classification import ml_classification_passes, prepare_ml_classification
+	from apps.exercises.ml_data_prep import ml_data_prep_passes, prepare_ml_data_prep
+	from apps.exercises.ml_ensembles import ml_ensembles_passes, prepare_ml_ensembles
+	from apps.exercises.ml_regression import ml_regression_passes, prepare_ml_regression
+	from apps.exercises.ml_unsupervised import ml_unsupervised_passes, prepare_ml_unsupervised
+
+	ML_STACK_AVAILABLE = True
+except ImportError:  # pragma: no cover - lite hosts omit sklearn/xgboost
+	ML_STACK_AVAILABLE = False
+
+	def _ml_unavailable(*_args, **_kwargs):
+		raise RuntimeError(
+			"Machine learning packages (scikit-learn / xgboost) are not installed on this host."
+		)
+
+	prepare_ml_data_prep = _ml_unavailable
+	ml_data_prep_passes = _ml_unavailable
+	prepare_ml_regression = _ml_unavailable
+	ml_regression_passes = _ml_unavailable
+	prepare_ml_classification = _ml_unavailable
+	ml_classification_passes = _ml_unavailable
+	prepare_ml_advanced_classification = _ml_unavailable
+	ml_advanced_classification_passes = _ml_unavailable
+	prepare_ml_ensembles = _ml_unavailable
+	ml_ensembles_passes = _ml_unavailable
+	prepare_ml_unsupervised = _ml_unavailable
+	ml_unsupervised_passes = _ml_unavailable
+
 from apps.exercises.pandas_intro import (
 	build_patient_dataframe,
 	dataframes_match,
@@ -31,7 +77,7 @@ from apps.exercises.pandas_intro import (
 	pandas_intro_task_passes,
 	scalars_match,
 )
-from apps.exercises.plotting_bonus import evaluate_plotting_bonus
+from apps.exercises.plotting_bonus import evaluate_plotting_bonus, format_plotting_bonus_prompt
 from apps.exercises.grading import (
 	MODE_EVALUATE,
 	MODE_RUN,
@@ -47,14 +93,37 @@ from apps.exercises.sandbox_hardening import (
 )
 
 SANDBOX_HELPERS = {
+	"introduce_data_quality_issues": introduce_data_quality_issues,
+	"data_quality_cleanup_passes": data_quality_cleanup_passes,
 	"build_patient_dataframe": build_patient_dataframe,
 	"generate_pandas_intro_task": generate_pandas_intro_task,
 	"build_product_dataframe": build_product_dataframe,
 	"generate_data_transformation_task": generate_data_transformation_task,
+	"prepare_messy_dataset": prepare_messy_dataset,
+	"repair_messy_number": repair_messy_number,
+	"messy_dataset_passes": messy_dataset_passes,
+	"prepare_ab_testing": prepare_ab_testing,
+	"welch_ttest": welch_ttest,
+	"ab_testing_passes": ab_testing_passes,
+	"prepare_descriptive_statistics": prepare_descriptive_statistics,
+	"descriptive_statistics_passes": descriptive_statistics_passes,
+	"prepare_ml_data_prep": prepare_ml_data_prep,
+	"ml_data_prep_passes": ml_data_prep_passes,
+	"prepare_ml_regression": prepare_ml_regression,
+	"ml_regression_passes": ml_regression_passes,
+	"prepare_ml_classification": prepare_ml_classification,
+	"ml_classification_passes": ml_classification_passes,
+	"prepare_ml_advanced_classification": prepare_ml_advanced_classification,
+	"ml_advanced_classification_passes": ml_advanced_classification_passes,
+	"prepare_ml_ensembles": prepare_ml_ensembles,
+	"ml_ensembles_passes": ml_ensembles_passes,
+	"prepare_ml_unsupervised": prepare_ml_unsupervised,
+	"ml_unsupervised_passes": ml_unsupervised_passes,
 	"dataframes_match": dataframes_match,
 	"scalars_match": scalars_match,
 	"pandas_intro_task_passes": pandas_intro_task_passes,
 	"data_transformation_passes": data_transformation_passes,
+	"missing_values_imputation_passes": missing_values_imputation_passes,
 }
 
 
@@ -130,6 +199,11 @@ ALLOWED_AST_NODES = {
     ast.UnaryOp,
     ast.UAdd,
     ast.USub,
+    # `lambda` powers .apply()/.agg()/sorted(key=...); its body is walked by the
+    # same validator, so it inherits every other restriction.
+    ast.Lambda,
+    # `~` is the standard pandas mask negation: df[~df["a"].isna()].
+    ast.Invert,
     ast.While,
     ast.comprehension,
     ast.keyword,
@@ -153,11 +227,47 @@ ALLOWED_AST_NODES = {
     ast.NamedExpr,
 }
 
+# Learner-facing guidance for the AST features this sandbox does not allow.
+BLOCKED_FEATURE_HELP = {
+    "FunctionDef": (
+        "Defining functions with `def` is not available here. Write the steps "
+        "directly in the cell, or use a `lambda` inside .apply()."
+    ),
+    "AsyncFunctionDef": "Async code is not available in this exercise.",
+    "ClassDef": "Defining classes is not available here. Work with `df` directly.",
+    "With": (
+        "`with` blocks are not available because file handling is disabled. "
+        "Use the preloaded `df` instead of opening files."
+    ),
+    "Delete": "`del` is not available. Assign a new variable instead of deleting one.",
+    "Global": "`global` is not available. Assign the variable directly in the cell.",
+    "Nonlocal": "`nonlocal` is not available in this exercise.",
+    "Await": "Async code is not available in this exercise.",
+    "Yield": "Generators with `yield` are not available. Use a list comprehension.",
+    "YieldFrom": "Generators with `yield` are not available. Use a list comprehension.",
+    "MatMult": "The `@` matrix operator is not available. Use `.dot()` instead.",
+}
+
+
+def _blocked_feature_message(node_name: str) -> str:
+    help_text = BLOCKED_FEATURE_HELP.get(node_name)
+    if help_text:
+        return help_text
+    return (
+        f"`{node_name}` is not available in this exercise sandbox. "
+        "Stick to pandas, numpy, and matplotlib operations on the preloaded data."
+    )
+
+
 CANONICAL_ALIASES = {
     "numpy": "np",
     "pandas": "pd",
     "matplotlib.pyplot": "plt",
 }
+# Optional on full hosts; omitted from lite requirements to stay under disk quota.
+if ML_STACK_AVAILABLE:
+    CANONICAL_ALIASES["seaborn"] = "sns"
+
 
 SAFE_BUILTINS = {
     "abs": abs,
@@ -166,19 +276,15 @@ SAFE_BUILTINS = {
     "bool": bool,
     "dict": dict,
     "enumerate": enumerate,
-    "filter": filter,
     "float": float,
     "int": int,
-    "isinstance": isinstance,
     "len": len,
     "list": list,
-    "map": map,
     "max": max,
     "min": min,
     "next": next,
     "print": print,
     "range": range,
-    "reversed": reversed,
     "round": round,
     "set": set,
     "sorted": sorted,
@@ -189,14 +295,7 @@ SAFE_BUILTINS = {
     "ValueError": ValueError,
     "TypeError": TypeError,
     "Exception": Exception,
-    "KeyError": KeyError,
-    "IndexError": IndexError,
-    "NameError": NameError,
-    "ZeroDivisionError": ZeroDivisionError,
 }
-
-# Marker so the parent can find the worker payload even if libraries write to stdout.
-WORKER_RESULT_PREFIX = "EXERCISE_RESULT_JSON:"
 
 
 def split_notebook_source(source: str) -> list[dict[str, str]]:
@@ -221,24 +320,74 @@ def _source_hash(source: str) -> str:
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
+def _import_is_allowed(module_name: str | None, allowed_imports: list[str]) -> bool:
+    if not module_name:
+        return False
+    name = module_name.lstrip(".")
+    allowed = [str(item).strip() for item in (allowed_imports or []) if str(item).strip()]
+    for entry in allowed:
+        if name == entry or name.startswith(f"{entry}.") or entry.startswith(f"{name}."):
+            return True
+        if name.split(".", 1)[0] == entry.split(".", 1)[0]:
+            return True
+    return False
+
+
+def _make_safe_import(allowed_imports: list[str]):
+    def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002
+        if level:
+            raise ImportError("Relative imports are not available in this exercise.")
+        if not _import_is_allowed(name, allowed_imports):
+            raise ImportError(
+                f"Import of `{name}` is not allowed for this exercise. "
+                "Use the preloaded libraries listed in the task prompt."
+            )
+        module = importlib.import_module(name)
+        # Match builtin __import__: dotted `import pkg.mod` returns the top-level package
+        # unless fromlist is non-empty (as with `from pkg.mod import ...`).
+        if fromlist:
+            return module
+        if "." in name:
+            return importlib.import_module(name.split(".", 1)[0])
+        return module
+
+    return _safe_import
+
+
 def _validate_imports(tree: ast.AST, allowed_imports: list[str]) -> None:
     for node in ast.walk(tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            raise ImportError(
-                "Import statements are blocked for this exercise. Use the preloaded libraries instead."
-            )
+        if isinstance(node, ast.alias):
+            # Visited as children of Import / ImportFrom; validated on the parent.
+            continue
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if not _import_is_allowed(alias.name, allowed_imports):
+                    raise ImportError(
+                        f"Import of `{alias.name}` is not allowed for this exercise. "
+                        "Use the preloaded libraries listed in the task prompt."
+                    )
+            continue
+        if isinstance(node, ast.ImportFrom):
+            if not _import_is_allowed(node.module, allowed_imports):
+                raise ImportError(
+                    f"Import from `{node.module or '?'}` is not allowed for this exercise. "
+                    "Use the preloaded libraries listed in the task prompt."
+                )
+            continue
         if type(node) not in ALLOWED_AST_NODES:
+            raise ValueError(_blocked_feature_message(type(node).__name__))
+        if isinstance(node, ast.Name) and node.id in DISALLOWED_NAMES and node.id != "__import__":
             raise ValueError(
-                f"This code uses a blocked language feature: {type(node).__name__}."
+                f"`{node.id}` is not available in this exercise sandbox."
             )
-        if isinstance(node, ast.Name) and node.id in DISALLOWED_NAMES:
-            raise ValueError(f"This code uses a blocked name: {node.id}.")
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
-            raise ValueError("Private attributes are blocked in this exercise.")
+            raise ValueError(
+                "Attributes starting with `_` are internal and blocked in this exercise."
+            )
         if isinstance(node, ast.Attribute) and blocked_path_attr_guard(node.attr):
             raise ValueError(f"This code uses a blocked attribute: {node.attr}.")
         if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id in DISALLOWED_NAMES:
+            if isinstance(node.func, ast.Name) and node.func.id in DISALLOWED_NAMES and node.func.id != "__import__":
                 raise ValueError(f"This code calls a blocked function: {node.func.id}.")
             if isinstance(node.func, ast.Attribute) and node.func.attr.startswith("_"):
                 raise ValueError("Private methods are blocked in this exercise.")
@@ -259,7 +408,9 @@ def _load_allowed_modules(allowed_imports: list[str]) -> dict[str, object]:
 
 
 def _build_namespace(allowed_imports: list[str], data_state: dict) -> dict[str, object]:
-    namespace: dict[str, object] = {"__builtins__": SAFE_BUILTINS.copy()}
+    builtins = SAFE_BUILTINS.copy()
+    builtins["__import__"] = _make_safe_import(allowed_imports)
+    namespace: dict[str, object] = {"__builtins__": builtins}
     namespace.update(_load_allowed_modules(allowed_imports))
     namespace.update(SANDBOX_HELPERS)
     namespace["data"] = deepcopy(data_state)
@@ -290,7 +441,7 @@ def _build_namespace(allowed_imports: list[str], data_state: dict) -> dict[str, 
     return namespace
 
 
-def _unavailable_result(data_state: dict | None, message: str = "Dataset unavailable.") -> dict[str, object]:
+def _unavailable_result(data_state: dict | None, message: str = UNAVAILABLE_MESSAGE) -> dict[str, object]:
     return {
         "success": False,
         "ran": False,
@@ -322,6 +473,7 @@ def _unavailable_result(data_state: dict | None, message: str = "Dataset unavail
         "progress": {"summary": message, "passed": False, "completed_cells": 0, "ran": False},
         "data_state": data_state or {},
         "task_prompt": "",
+        "task_prompt_html": "",
         "plotting_bonus": {
             "attempted": False,
             "passed": False,
@@ -355,10 +507,6 @@ def _capture_figures(namespace: dict[str, object]) -> list[dict[str, str]]:
                 "base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
             }
         )
-    try:
-        plt.close("all")
-    except Exception:
-        pass
     return figures
 
 
@@ -379,41 +527,18 @@ def _value_to_html(value: object) -> str | None:
         return None
 
     preview = frame.head(10)
-    try:
-        return preview.to_html(
-            classes="dataframe-preview",
-            border=0,
-            index=True,
-            justify="left",
-            max_cols=12,
-            escape=True,
-        )
-    except Exception:
-        return None
+    return preview.to_html(
+        classes="dataframe-preview",
+        border=0,
+        index=True,
+        justify="left",
+        max_cols=12,
+        escape=True,
+    )
 
 
-def _install_cell_print(namespace: dict[str, object], stdout: io.StringIO):
-    """Force sandbox print() into the cell capture buffer (not the worker pipe)."""
-    real_print = print
-
-    def cell_print(*args, **kwargs):
-        file = kwargs.get("file", stdout)
-        if file is None or file is sys.stdout:
-            kwargs = dict(kwargs)
-            kwargs["file"] = stdout
-        real_print(*args, **kwargs)
-
-    builtins = namespace.get("__builtins__")
-    if isinstance(builtins, dict):
-        builtins = dict(builtins)
-        builtins["print"] = cell_print
-        namespace["__builtins__"] = builtins
-    namespace["print"] = cell_print
-    return cell_print
-
-
-def _execute_cell_local(source: str, namespace: dict[str, object], allowed_imports: list[str]) -> dict[str, object]:
-    result = {
+def _empty_cell_result(source: str, *, cell_type: str = "code") -> dict[str, object]:
+    return {
         "source": source,
         "source_hash": _source_hash(source),
         "stdout": "",
@@ -422,17 +547,27 @@ def _execute_cell_local(source: str, namespace: dict[str, object], allowed_impor
         "error": None,
         "figures": [],
         "figure_reused": False,
+        "cell_type": cell_type,
     }
 
+
+def _execute_cell_local(
+    source: str,
+    namespace: dict[str, object],
+    allowed_imports: list[str],
+    *,
+    cell_type: str = "code",
+) -> dict[str, object]:
+    if (cell_type or "code") == "markdown":
+        return _empty_cell_result(source, cell_type="markdown")
+
+    result = _empty_cell_result(source, cell_type="code")
+
     stdout = io.StringIO()
-    previous_print = namespace.get("print")
-    previous_builtins = namespace.get("__builtins__")
     try:
         tree = ast.parse(source or "", mode="exec")
         _validate_imports(tree, allowed_imports)
-        _install_cell_print(namespace, stdout)
 
-        value = None
         with redirect_stdout(stdout):
             if tree.body and isinstance(tree.body[-1], ast.Expr):
                 prefix = ast.Module(body=tree.body[:-1], type_ignores=[])
@@ -440,26 +575,18 @@ def _execute_cell_local(source: str, namespace: dict[str, object], allowed_impor
                     exec(compile(prefix, "<exercise-cell>", "exec"), namespace, namespace)
                 expression = ast.Expression(tree.body[-1].value)
                 value = eval(compile(expression, "<exercise-cell>", "eval"), namespace, namespace)
+                if value is not None:
+                    result["html"] = _value_to_html(value)
+                    if result["html"]:
+                        result["value_repr"] = f"{type(value).__name__} shape={getattr(value, 'shape', '')}"
+                    else:
+                        result["value_repr"] = repr(value)
             else:
                 exec(compile(tree, "<exercise-cell>", "exec"), namespace, namespace)
-
-        if value is not None:
-            result["html"] = _value_to_html(value)
-            if result["html"]:
-                result["value_repr"] = f"{type(value).__name__} shape={getattr(value, 'shape', '')}"
-            else:
-                result["value_repr"] = repr(value)
     except Exception:
         result["error"] = traceback.format_exc()
         result["stdout"] = stdout.getvalue()
         return result
-    finally:
-        if previous_builtins is not None:
-            namespace["__builtins__"] = previous_builtins
-        if previous_print is not None:
-            namespace["print"] = previous_print
-        elif "print" in namespace:
-            namespace.pop("print", None)
 
     result["stdout"] = stdout.getvalue()
     result["figures"] = _capture_figures(namespace)
@@ -480,19 +607,22 @@ def _run_notebook_payload(
 ) -> dict[str, object]:
     from django.conf import settings as django_settings
 
-    # Never apply rlimits in the web process — only inside the isolated worker.
-    if (
-        os.environ.get("EXERCISE_SANDBOX_WORKER") == "1"
-        and getattr(django_settings, "EXERCISE_ENABLE_RESOURCE_LIMITS", True)
-    ):
-        apply_resource_limits()
+    if getattr(django_settings, "EXERCISE_ENABLE_RESOURCE_LIMITS", True):
+        # Keep the CPU budget just above the wall-clock timeout so runaway code
+        # hits the rlimit rather than only being killed from the parent side.
+        apply_resource_limits(
+            cpu_seconds=int(getattr(django_settings, "EXERCISE_RUN_TIMEOUT", 45)) + 15
+        )
     previous_by_hash = {
         cell.get("source_hash"): cell
         for cell in previous_results or []
         if cell.get("source_hash")
     }
     mode = MODE_RUN if mode == MODE_RUN else MODE_EVALUATE
-    namespace = _build_namespace(allowed_imports, data_state or {})
+    try:
+        namespace = _build_namespace(allowed_imports, data_state or {})
+    except DatasetUnavailableError as exc:
+        return _unavailable_result(data_state, str(exc) or UNAVAILABLE_MESSAGE)
 
     if soft_skill_prompt and isinstance(namespace.get("data"), dict):
         namespace["data"]["soft_skill_prompt"] = soft_skill_prompt
@@ -503,7 +633,13 @@ def _run_notebook_payload(
 
     for cell in cells:
         source = cell.get("source", "")
-        result = _execute_cell_local(source, namespace, allowed_imports)
+        cell_type = str(cell.get("cell_type") or "code")
+        result = _execute_cell_local(
+            source,
+            namespace,
+            allowed_imports,
+            cell_type=cell_type,
+        )
         cached_cell = previous_by_hash.get(result["source_hash"])
         if cached_cell and cached_cell.get("figures") and not result["error"]:
             result["figures"] = cached_cell["figures"]
@@ -515,7 +651,11 @@ def _run_notebook_payload(
             break
 
     ran = last_error is None
-    cell_sources = [cell.get("source", "") for cell in cells[:completed_cells]]
+    cell_sources = [
+        cell.get("source", "")
+        for cell in cells[:completed_cells]
+        if str(cell.get("cell_type") or "code") != "markdown"
+    ]
     # Optional exercise outputs — avoid NameError in assertion expressions.
     for optional in (
         "answer",
@@ -530,6 +670,70 @@ def _run_notebook_payload(
     ):
         namespace.setdefault(optional, None)
     task = namespace.get("task")
+    from apps.exercises.notebook_layout import with_preloaded_libraries_note
+
+    task_prompt = ""
+    plotting_bonus_prompt = ""
+    if isinstance(task, dict):
+        task_prompt = str(task.get("prompt") or "").strip()
+        plotting_bonus_prompt = format_plotting_bonus_prompt(task.get("plotting_bonus"))
+    task_prompt = with_preloaded_libraries_note(task_prompt, allowed_imports)
+
+    # Run executes code only. Grading / rubric / soft feedback happen on Evaluate.
+    if mode == MODE_RUN:
+        summary = (
+            "Notebook ran successfully. Click Evaluate Exercise when you want credit."
+            if ran
+            else "Notebook stopped on an error. Fix it, then run again."
+        )
+        evaluation = {
+            "mode": MODE_RUN,
+            "passed": False,
+            "core_passed": False,
+            "band": BAND_INCOMPLETE,
+            "summary": summary,
+            "checks": [],
+            "rubric": None,
+            "soft_feedback": None,
+            "plotting_bonus": None,
+            "reveal_expected": False,
+            "answer_feedback": {"revealed": False, "can_reveal": False, "policy": "hide", "items": []},
+        }
+        progress = {
+            "summary": summary,
+            "passed": False,
+            "completed_cells": completed_cells,
+            "ran": ran,
+            "band": BAND_INCOMPLETE,
+            "mode": MODE_RUN,
+        }
+        return {
+            "success": bool(ran),
+            "ran": ran,
+            "core_passed": False,
+            "band": BAND_INCOMPLETE,
+            "mode": MODE_RUN,
+            "cells": results,
+            "namespace": {
+                key: repr(value)
+                for key, value in namespace.items()
+                if key not in {"__builtins__"}
+            },
+            "completed_cells": completed_cells,
+            "evaluation": evaluation,
+            "progress": progress,
+            "data_state": namespace.get("data", data_state or {}),
+            "task_prompt": task_prompt,
+            "task_prompt_html": str(render_markdown_html(task_prompt)) if task_prompt else "",
+            "plotting_bonus_prompt": plotting_bonus_prompt,
+            "plotting_bonus_prompt_html": (
+                str(render_markdown_html(plotting_bonus_prompt)) if plotting_bonus_prompt else ""
+            ),
+            "plotting_bonus": None,
+            "soft_feedback": None,
+            "error": last_error,
+        }
+
     bonus_spec = task.get("plotting_bonus") if isinstance(task, dict) else None
     figure_count = sum(len(item.get("figures") or []) for item in results)
     plotting_bonus = evaluate_plotting_bonus(
@@ -541,20 +745,19 @@ def _run_notebook_payload(
     evaluation = evaluate_with_graders(
         namespace,
         evaluation_rules or {},
-        mode=mode,
+        mode=MODE_EVALUATE,
         cell_sources=cell_sources,
-                soft_skill_response=soft_skill_response,
-                plotting_bonus=plotting_bonus,
-                reveal_expected=reveal_expected,
-                second_seed_ok=None,
-                soft_skill_prompt=soft_skill_prompt,
-            )
+        soft_skill_response=soft_skill_response,
+        plotting_bonus=plotting_bonus,
+        reveal_expected=reveal_expected,
+        second_seed_ok=None,
+        soft_skill_prompt=soft_skill_prompt,
+    )
 
     from django.conf import settings as django_settings
 
     if (
         ran
-        and mode == MODE_EVALUATE
         and not skip_second_seed
         and evaluation.get("core_passed")
         and second_seed_config(evaluation_rules).get("enabled")
@@ -585,7 +788,7 @@ def _run_notebook_payload(
             evaluation = evaluate_with_graders(
                 namespace,
                 evaluation_rules or {},
-                mode=mode,
+                mode=MODE_EVALUATE,
                 cell_sources=cell_sources,
                 soft_skill_response=soft_skill_response,
                 plotting_bonus=plotting_bonus,
@@ -595,26 +798,23 @@ def _run_notebook_payload(
             )
 
     core_passed = bool(evaluation.get("core_passed")) if ran else False
-    success = bool(ran) if mode == MODE_RUN else bool(ran and core_passed)
+    success = bool(ran and core_passed)
 
     progress = {
         "summary": evaluation.get("summary", ""),
-        "passed": bool(core_passed) if mode == MODE_EVALUATE else False,
+        "passed": bool(core_passed),
         "completed_cells": completed_cells,
         "ran": ran,
         "band": evaluation.get("band") or BAND_INCOMPLETE,
-        "mode": mode,
+        "mode": MODE_EVALUATE,
     }
-    task_prompt = ""
-    if isinstance(task, dict):
-        task_prompt = str(task.get("prompt") or "").strip()
 
     return {
         "success": success,
         "ran": ran,
         "core_passed": core_passed,
         "band": evaluation.get("band") or BAND_INCOMPLETE,
-        "mode": mode,
+        "mode": MODE_EVALUATE,
         "cells": results,
         "namespace": {
             key: repr(value)
@@ -626,8 +826,13 @@ def _run_notebook_payload(
         "progress": progress,
         "data_state": namespace.get("data", data_state or {}),
         "task_prompt": task_prompt,
+        "task_prompt_html": str(render_markdown_html(task_prompt)) if task_prompt else "",
+        "plotting_bonus_prompt": plotting_bonus_prompt,
+        "plotting_bonus_prompt_html": (
+            str(render_markdown_html(plotting_bonus_prompt)) if plotting_bonus_prompt else ""
+        ),
         "plotting_bonus": plotting_bonus,
-        "soft_feedback": evaluation.get("soft_feedback"),
+        "soft_feedback": None,
         "error": last_error,
     }
 
@@ -641,6 +846,43 @@ def evaluate_notebook(namespace: dict[str, object], evaluation_rules: dict) -> d
         cell_sources=[],
         plotting_bonus=None,
     )
+
+
+class _WorkerResult:
+    __slots__ = ("returncode", "stdout", "stderr")
+
+    def __init__(self, returncode: int, stdout: str, stderr: str):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def _run_worker(command, stdin_payload, cwd, env, timeout_seconds):
+    """Run the sandbox worker in its own process group so a timeout kills any children."""
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=cwd,
+        env=env,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(stdin_payload, timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        _terminate_process_group(process)
+        process.communicate()
+        raise
+    return _WorkerResult(process.returncode, stdout, stderr)
+
+
+def _terminate_process_group(process) -> None:
+    try:
+        os.killpg(os.getpgid(process.pid), 9)
+    except Exception:
+        process.kill()
 
 
 def run_notebook(
@@ -697,24 +939,15 @@ def run_notebook(
         (
             "import json, sys; "
             "payload = json.loads(sys.stdin.read()); "
-            "from apps.exercises.services import WORKER_RESULT_PREFIX, _run_notebook_payload; "
+            "from apps.exercises.services import _run_notebook_payload; "
             "result = _run_notebook_payload(**payload); "
-            "sys.stdout.write(WORKER_RESULT_PREFIX + json.dumps(result) + '\\n'); "
-            "sys.stdout.flush()"
+            "print(json.dumps(result))"
         ),
     ]
 
+    timeout_seconds = int(getattr(django_settings, "EXERCISE_RUN_TIMEOUT", 45))
     try:
-        completed = subprocess.run(
-            command,
-            input=json.dumps(payload),
-            capture_output=True,
-            text=True,
-            timeout=120,
-            cwd=project_root,
-            env=env,
-            check=False,
-        )
+        completed = _run_worker(command, json.dumps(payload), project_root, env, timeout_seconds)
     except subprocess.TimeoutExpired:
         return {
             "success": False,
@@ -743,71 +976,50 @@ def run_notebook(
 
     if completed.returncode != 0:
         stderr = completed.stderr.strip() or "Notebook worker exited without returning a result."
-        # Fall back to in-process execution when the isolated worker cannot run
-        # (common on some shared hosts that restrict subprocesses).
-        try:
-            return _run_notebook_payload(**payload)
-        except Exception:
-            return {
-                "success": False,
-                "ran": False,
+        return {
+            "success": False,
+            "ran": False,
+            "core_passed": False,
+            "band": BAND_INCOMPLETE,
+            "cells": [],
+            "namespace": {},
+            "completed_cells": 0,
+            "evaluation": {
+                "passed": False,
                 "core_passed": False,
+                "summary": stderr,
+                "checks": [],
                 "band": BAND_INCOMPLETE,
-                "cells": [],
-                "namespace": {},
-                "completed_cells": 0,
-                "evaluation": {
-                    "passed": False,
-                    "core_passed": False,
-                    "summary": stderr,
-                    "checks": [],
-                    "band": BAND_INCOMPLETE,
-                },
-                "progress": {"summary": stderr, "passed": False, "completed_cells": 0, "ran": False},
-                "data_state": data_state or {},
-                "error": stderr,
-            }
+            },
+            "progress": {"summary": stderr, "passed": False, "completed_cells": 0, "ran": False},
+            "data_state": data_state or {},
+            "error": stderr,
+        }
 
     try:
-        return _parse_worker_stdout(completed.stdout)
+        return json.loads(completed.stdout.strip().splitlines()[-1])
     except Exception:
-        # Worker stdout was unusable; try in-process once before failing hard.
-        try:
-            return _run_notebook_payload(**payload)
-        except Exception:
-            return {
-                "success": False,
-                "ran": False,
+        return {
+            "success": False,
+            "ran": False,
+            "core_passed": False,
+            "band": BAND_INCOMPLETE,
+            "cells": [],
+            "namespace": {},
+            "completed_cells": 0,
+            "evaluation": {
+                "passed": False,
                 "core_passed": False,
+                "summary": "Invalid worker response.",
+                "checks": [],
                 "band": BAND_INCOMPLETE,
-                "cells": [],
-                "namespace": {},
+            },
+            "progress": {
+                "summary": "Invalid worker response.",
+                "passed": False,
                 "completed_cells": 0,
-                "evaluation": {
-                    "passed": False,
-                    "core_passed": False,
-                    "summary": "Invalid worker response.",
-                    "checks": [],
-                    "band": BAND_INCOMPLETE,
-                },
-                "progress": {
-                    "summary": "Invalid worker response.",
-                    "passed": False,
-                    "completed_cells": 0,
-                    "ran": False,
-                },
-                "data_state": data_state or {},
-                "error": completed.stdout or completed.stderr or "Invalid worker response.",
-            }
-
-
-def _parse_worker_stdout(stdout: str) -> dict[str, object]:
-    """Extract the notebook result JSON from worker stdout."""
-    lines = (stdout or "").strip().splitlines()
-    for line in reversed(lines):
-        if line.startswith(WORKER_RESULT_PREFIX):
-            return json.loads(line[len(WORKER_RESULT_PREFIX) :])
-    if not lines:
-        raise ValueError("Worker returned no stdout.")
-    # Backward-compatible: last line is bare JSON.
-    return json.loads(lines[-1])
+                "ran": False,
+            },
+            "data_state": data_state or {},
+            "error": completed.stdout or completed.stderr or "Invalid worker response.",
+        }

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Jim's Data Gym{% endblock %}
+{% block meta_description %}Practice data analytics with Python at Jim's Data Gym — interactive tracks, Data Zoo, forum, and community support.{% endblock %}
+
+{% block content %}
+<div class="space-y-14">
+    {% if not user.is_authenticated %}
+    <div class="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-950 shadow-sm dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100" role="status">
+        <p class="font-semibold">You are not signed in</p>
+        <p class="mt-1 text-amber-900/90 dark:text-amber-100/90">
+            Practice as a guest, or
+            <a href="{% url 'membership' %}#enter-passkey" class="font-semibold underline underline-offset-2 hover:text-amber-700 dark:hover:text-white">enter your passkey</a>
+            to return to an existing account, or
+            <a href="{% url 'membership' %}#create-account" class="font-semibold underline underline-offset-2 hover:text-amber-700 dark:hover:text-white">create an account</a>
+            to get a new identification token.
+        </p>
+    </div>
+    {% endif %}
+
+    <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-prior-500 via-likelihood-500 to-posterior-500 text-white shadow-xl px-6 py-16 sm:px-12 sm:py-20">
+        <div class="relative max-w-3xl">
+            <img src="{% static 'imgs/logo_landscape.svg' %}" alt="Jim's Data Gym" class="h-16 w-auto sm:h-20 drop-shadow-sm bg-white/90 rounded-2xl px-3 py-2">
+            <p class="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-white/90">Welcome</p>
+            <h1 class="hero-display mt-3 text-4xl sm:text-5xl font-extrabold tracking-tight">
+                Ready to train?
+            </h1>
+            <p class="mt-4 text-lg text-white/90 max-w-2xl">
+                Jump into interactive Python tracks, explore datasets in the Data Zoo, or join the forum when you want company.
+            </p>
+            <div class="mt-8 flex flex-wrap gap-3">
+                <a href="{% url 'exercises:list' %}" class="rounded-full bg-white px-6 py-3 text-sm font-semibold text-posterior-700 shadow hover:bg-neutral-100 transition">
+                    Enter the tracks
+                </a>
+                <a href="{% url 'about' %}" class="rounded-full border border-white/40 bg-white/10 px-6 py-3 text-sm font-semibold text-white hover:bg-white/20 transition">
+                    About the Gym
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="grid gap-6 md:grid-cols-3">
+        <a href="{% url 'exercises:list' %}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm hover:border-primary-300 dark:hover:border-primary-600 transition">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Tracks</h2>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Structured exercise paths with live notebook feedback.</p>
+        </a>
+        <a href="{% url 'exercises:zoo' %}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm hover:border-primary-300 dark:hover:border-primary-600 transition">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Data Zoo</h2>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Browse and explore datasets used across the gym.</p>
+        </a>
+        <a href="{% url 'forum:index' %}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm hover:border-primary-300 dark:hover:border-primary-600 transition">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Forum</h2>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Ask questions, share approaches, and learn with others.</p>
+        </a>
+    </section>
+</div>
+{% endblock %}

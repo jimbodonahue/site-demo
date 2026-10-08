@@ -1,0 +1,1 @@
+Contemplate how you could create a data pipeline that takes care of these issues before they get to the data analyst. In 2–4 sentences, describe where such checks might live (ingestion, scheduled jobs, warehouse tests) and at least one benefit of catching problems earlier.

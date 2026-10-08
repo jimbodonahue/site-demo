@@ -1,0 +1,5 @@
+{
+  "easy": "Using the pre-split arrays for target `{target}`, train a decision tree (max_depth=4), logistic regression (max_iter=500), and an RBF SVM. Compare test accuracy and set `answer['best_model']` to `'tree'`, `'logreg'`, or `'svm'`. Also store `answer['scores']` as a dict of the three accuracies (4 decimals).",
+  "medium": "Split `df` (target `{target}`). Tune a {family} classifier and pick the best test {metric}. Store `answer['family']`, `answer['best_param']`, `answer['metric']='{metric}'`, and `answer['score']` (4 decimals).",
+  "hard": "Split `df` (target `{target}`), scale with {scaler}, train a {family} classifier, and report test {metric} in `answer['score']` (4 decimals). Also set `answer['family']`, `answer['scaler']`, and `answer['metric']`."
+}

@@ -1,0 +1,5 @@
+{
+  "easy": "Standardize numeric columns, run K-means with K={k}, and summarize clusters. Store `answer['k']` and `answer['clusters']` with means for {key_cols}.",
+  "medium": "Standardize numeric features, choose K via silhouette for K=2..6, then summarize clusters. Store `answer['best_k']`, `answer['silhouette']`, and `answer['clusters']`.",
+  "hard": "Standardize, run PCA to {n_components} components, and compare K-means on full vs PCA space. Store best K and silhouette for both, plus `answer['better_space']`."
+}

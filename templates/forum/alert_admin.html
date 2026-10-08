@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Alert Admin | Forum{% endblock %}
+{% block meta_description %}Confidentially report a Code of Conduct concern to Jim's Data Gym admins.{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto space-y-6">
+  <div>
+    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">Confidential</p>
+    <h1 class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">Alert Admin</h1>
+    <p class="mt-2 text-slate-600 dark:text-slate-300">
+      Report a Code of Conduct concern. Moderators will investigate promptly.
+      Read the <a href="{% url 'forum:code_of_conduct' %}" class="font-semibold text-sky-600 dark:text-sky-400 hover:underline">Code of Conduct</a> for community standards.
+    </p>
+  </div>
+
+  {% if previous_page %}
+  <p class="text-xs text-slate-500 dark:text-slate-400 break-all">
+    Reporting from: <span class="font-mono">{{ previous_page }}</span>
+  </p>
+  {% endif %}
+
+  <form method="post" class="space-y-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+    {% csrf_token %}
+    {{ form.previous_page }}
+
+    {% if form.non_field_errors %}
+      <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div>
+      <label for="{{ form.reported_nickname.id_for_label }}" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">{{ form.reported_nickname.label }}</label>
+      {{ form.reported_nickname }}
+      {% if form.reported_nickname.help_text %}
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ form.reported_nickname.help_text }}</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <label for="{{ form.message.id_for_label }}" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">{{ form.message.label }}</label>
+      {{ form.message }}
+      {% if form.message.errors %}
+        <p class="mt-2 text-sm text-red-600">{{ form.message.errors|join:", " }}</p>
+      {% endif %}
+    </div>
+
+    <div class="flex items-start gap-3">
+      {{ form.want_reply }}
+      <label for="{{ form.want_reply.id_for_label }}" class="text-sm text-slate-700 dark:text-slate-200">{{ form.want_reply.label }}</label>
+    </div>
+
+    <div>
+      <label for="{{ form.email.id_for_label }}" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">{{ form.email.label }}</label>
+      {{ form.email }}
+      {% if form.email.help_text %}
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ form.email.help_text }}</p>
+      {% endif %}
+      {% if form.email.errors %}
+        <p class="mt-2 text-sm text-red-600">{{ form.email.errors|join:", " }}</p>
+      {% endif %}
+    </div>
+
+    <div class="flex justify-end gap-3 pt-2">
+      <a href="{% url 'forum:index' %}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">Cancel</a>
+      <button type="submit" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500">Send report</button>
+    </div>
+  </form>
+</div>
+<script>
+(function () {
+    const wantReply = document.getElementById("{{ form.want_reply.id_for_label }}");
+    const emailField = document.getElementById("{{ form.email.id_for_label }}");
+    if (!wantReply || !emailField) return;
+    const wrap = emailField.closest("div");
+    function sync() {
+        if (wrap) wrap.style.opacity = wantReply.checked ? "1" : "0.65";
+        emailField.required = wantReply.checked;
+    }
+    wantReply.addEventListener("change", sync);
+    sync();
+})();
+</script>
+{% endblock %}

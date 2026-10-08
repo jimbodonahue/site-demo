@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Cardio | Jim's Data Gym{% endblock %}
+{% block meta_description %}Cardio drills are coming soon to Jim's Data Gym — short warm-up exercises to keep your skills sharp.{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl mx-auto py-10 px-4">
+    <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 p-8 text-center">
+        <p class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Coming soon</p>
+        <h1 class="mt-3 text-3xl font-bold text-slate-900 dark:text-white">Cardio</h1>
+        <p class="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300 max-w-xl mx-auto">
+            Short warm-up drills to keep your analytical muscles loose between longer track workouts.
+            This section is still being designed — check back soon.
+        </p>
+        <div class="mt-6">
+            <a href="{% url 'exercises:list' %}" class="inline-flex rounded-full bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 transition">
+                Browse tracks instead
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}

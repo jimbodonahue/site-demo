@@ -1,0 +1,9 @@
+{
+  "base": "Clean `df` so it matches a tidy sales table with columns: {columns}. You will need to restore proper column names, remove blank and duplicate rows, normalize similar values (for example 1 vs 'one'), and fix types so numeric fields are numeric.",
+  "ocr_repair": "Some values contain OCR-like typos (for example `2oo3` or `3,14`) that must be repaired. You may use `repair_messy_number(value)` for those cells.",
+  "drop_dup_columns": "Drop any duplicated columns (names ending in `_dup` or `_copy`).",
+  "join_extra": "Join `df_extra` on `product_id` to restore missing fields: {join_columns}.",
+  "hard_extra": "Watch for join-key type mismatches and a higher density of corrupted cells.",
+  "word_numbers": "For word numbers in `units` (one/two/…), convert them to integers (see `task['word_to_int']`).",
+  "assign_final": "Assign the final cleaned table back to `df`, sorted by product_id then store_id, with a reset index."
+}

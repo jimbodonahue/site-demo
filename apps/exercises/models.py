@@ -4,8 +4,9 @@ import bleach
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.urls import reverse
-from markdown import markdown
 from django.utils.safestring import mark_safe
+
+from apps.exercises.markdown_utils import render_markdown_html
 
 
 def _default_json_list():
@@ -76,57 +77,49 @@ class Exercise(models.Model):
 	def __str__(self):
 		return self.title
 
+	def display_intro_markdown(self) -> str:
+		"""Prefer content-file intro when present; fall back to the DB field."""
+		from apps.exercises.content import get_intro
+
+		return get_intro(self.slug) or self.intro_markdown or ""
+
+	def display_soft_skill_prompt(self) -> str:
+		from apps.exercises.content import get_soft_skill
+
+		return get_soft_skill(self.slug) or self.soft_skill_prompt or ""
+
+	def display_graphic_markup(self) -> str:
+		from apps.exercises.content import get_graphic_markup
+
+		return get_graphic_markup(self.slug) or self.graphic_markup or ""
+
+	def display_starter_code(self) -> str:
+		from apps.exercises.content import get_starter_code
+
+		return get_starter_code(self.slug) or self.starter_code or ""
+
+	def display_evaluation_rules(self) -> dict:
+		from apps.exercises.content import apply_messages_to_rules
+
+		return apply_messages_to_rules(self.slug, self.evaluation_rules)
+
 	def clean(self):
 		if self.published and not self.track_id:
 			raise ValidationError("A published exercise must belong to a track.")
 
 	def render_intro_html(self):
-		if not self.intro_markdown:
-			return ""
-		html = markdown(self.intro_markdown, extensions=["fenced_code", "tables"])
-		sanitized = bleach.clean(
-			html,
-			tags=[
-				"p",
-				"strong",
-				"b",
-				"em",
-				"i",
-				"ul",
-				"ol",
-				"li",
-				"blockquote",
-				"code",
-				"pre",
-				"table",
-				"thead",
-				"tbody",
-				"tr",
-				"th",
-				"td",
-				"a",
-				"hr",
-				"br",
-				"h1",
-				"h2",
-				"h3",
-				"h4",
-			],
-			attributes={
-				"a": ["href", "title"],
-				"code": ["class"],
-			},
-			protocols=["http", "https", "mailto"],
-			strip=True,
-		)
-		return mark_safe(sanitized)
+		return render_markdown_html(self.display_intro_markdown())
+
+	def render_soft_skill_html(self):
+		return render_markdown_html(self.display_soft_skill_prompt())
 
 	def render_graphic_html(self):
 		placeholder = (
-			"<div class='rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500'>"
+			"<div class='rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 "
+			"bg-slate-50 dark:bg-slate-900 p-6 text-sm text-slate-500 dark:text-slate-400'>"
 			"Exercise graphic placeholder</div>"
 		)
-		raw = self.graphic_markup or placeholder
+		raw = self.display_graphic_markup() or placeholder
 		sanitized = bleach.clean(
 			raw,
 			tags=[
@@ -171,9 +164,14 @@ class Exercise(models.Model):
 		)
 		return mark_safe(sanitized)
 
-	def starter_cells(self):
-		"""Student notebooks always start with two empty cells and no output."""
-		return [{"source": ""}, {"source": ""}]
+	def starter_cells(self, plotting_bonus_prompt: str | None = None):
+		"""Default notebook: work cells and plotting-bonus cells (imports are preloaded)."""
+		from apps.exercises.notebook_layout import build_starter_notebook
+
+		return build_starter_notebook(
+			self.allowed_imports,
+			plotting_bonus_prompt=plotting_bonus_prompt or "",
+		)
 
 	def initial_data_state(self):
 		state = deepcopy(self.data_definition.get("initial_data", {}))
@@ -206,12 +204,15 @@ class Exercise(models.Model):
 			self.data_definition.get("dataframe_source")
 			or (self.data_definition.get("initial_data") or {}).get("dataframe_source")
 		)
-		# Live generators draw from the Data Zoo and expose a sector picker.
+		# All playable generators draw from the Data Zoo and expose a sector picker.
 		zoo_sources = {
-			"pandas_intro",
-			"data_transformation",
 			"data_quality",
 			"missing_values",
+			"pandas_intro",
+			"data_transformation",
+			"messy_dataset",
+			"ab_testing",
+			"descriptive_statistics",
 		}
 		if source not in zoo_sources:
 			return []
@@ -228,6 +229,11 @@ class ExerciseAttempt(models.Model):
 	data_state = models.JSONField(default=_default_json_dict, blank=True)
 	result_state = models.JSONField(default=_default_json_dict, blank=True)
 	progress_state = models.JSONField(default=_default_json_dict, blank=True)
+	attempt_history = models.JSONField(
+		default=_default_json_list,
+		blank=True,
+		help_text="Prior tries for this visitor (try number, timestamp, seed, saved state).",
+	)
 	soft_skill_response = models.TextField(blank=True)
 	created_at = models.DateTimeField(auto_now_add=True)
 	updated_at = models.DateTimeField(auto_now=True)

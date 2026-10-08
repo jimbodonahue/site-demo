@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from apps.exercises.table_io import TABLE_SUFFIX, read_table
+
 DATA_SCIENCE_SECTORS = [
     "healthcare",
     "finance",
@@ -280,15 +282,27 @@ SECTOR_FACTORIES = {
 }
 
 
+def _dataset_stem(name: str) -> str:
+    if name.endswith(TABLE_SUFFIX):
+        return name[: -len(TABLE_SUFFIX)]
+    if name.endswith(".parquet"):
+        return name[: -len(".parquet")]
+    return Path(name).stem
+
+
 @lru_cache(maxsize=1)
 def ensure_zoo_parquet_catalog() -> dict[str, list[Path]]:
-    """Return local parquet files for each domain (populated by scripts/populate_zoo.py)."""
+    """Return local zoo table files for each domain (populated by scripts/populate_zoo.py)."""
     catalog: dict[str, list[Path]] = {}
     ZOO_DATA_DIR.mkdir(exist_ok=True)
     for sector in DATA_SCIENCE_SECTORS:
         sector_dir = ZOO_DATA_DIR / sector
         sector_dir.mkdir(exist_ok=True)
-        local_paths = sorted(sector_dir.glob("*.parquet"))
+        local_paths = (
+			sorted(sector_dir.glob("*.csv.gz"))
+			+ sorted(sector_dir.glob("*.pkl.gz"))
+			+ sorted(sector_dir.glob("*.parquet"))
+		)
         catalog[sector] = local_paths
     return catalog
 
@@ -304,15 +318,16 @@ def list_zoo_datasets(sector: str) -> list[Path]:
 
 
 def load_zoo_dataset_file(sector: str, dataset_file: str) -> pd.DataFrame:
-    """Load a parquet file previously selected from the zoo catalog for ``sector``."""
+    """Load a zoo table file previously selected from the catalog for ``sector``."""
     sector_name = (sector or "").lower().strip()
     file_name = (dataset_file or "").strip()
     if not file_name:
         raise ValueError("dataset_file is required.")
 
+    wanted = _dataset_stem(file_name)
     for path in list_zoo_datasets(sector_name):
-        if path.name == file_name:
-            return pd.read_parquet(path)
+        if path.name == file_name or _dataset_stem(path.name) == wanted:
+            return read_table(path)
 
     raise ValueError(
         f"Unknown dataset file '{file_name}' for sector '{sector_name}'. "
@@ -376,7 +391,7 @@ def sample_zoo_dataframe(
 ) -> pd.DataFrame:
     """Return a row-sampled frame from the Data Zoo.
 
-    Prefers a catalog parquet when ``dataset_file`` is given or when the sector
+    Prefers a catalog table when ``dataset_file`` is given or when the sector
     has local files; otherwise falls back to ``build_zoo_dataset``.
     """
     sector_name = (sector or "").lower().strip()
@@ -393,7 +408,7 @@ def sample_zoo_dataframe(
         frame = load_zoo_dataset_file(sector_name, chosen_file)
     elif catalog:
         path = catalog[int(rng.integers(0, len(catalog)))]
-        frame = pd.read_parquet(path)
+        frame = read_table(path)
 
     if frame is None or frame.empty:
         frame = build_zoo_dataset(sector_name, rows=target_rows or 200, seed=seed)
@@ -417,11 +432,179 @@ def list_zoo_sectors() -> list[str]:
     return list(DATA_SCIENCE_SECTORS)
 
 
+def sector_label(sector: str) -> str:
+    return (sector or "").replace("_", " ").title()
+
+
 def default_topic_choices() -> list[dict[str, str]]:
     """Standard Data Zoo sector picker options for exercise side panels."""
     return [
-        {"label": sector.replace("_", " ").title(), "value": sector}
+        {"label": sector_label(sector), "value": sector}
         for sector in DATA_SCIENCE_SECTORS
+    ]
+
+
+def _jsonable(value: Any) -> Any:
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    if isinstance(value, (np.integer,)):
+        return int(value)
+    if isinstance(value, (np.floating,)):
+        number = float(value)
+        if np.isnan(number) or np.isinf(number):
+            return None
+        return round(number, 4)
+    if isinstance(value, (np.bool_,)):
+        return bool(value)
+    if hasattr(value, "item"):
+        try:
+            return _jsonable(value.item())
+        except Exception:
+            pass
+    return value
+
+
+def summarize_dataframe(df: pd.DataFrame, *, preview_rows: int = 5, max_columns: int = 12) -> dict[str, Any]:
+    """Compact summary statistics for the Data Zoo explorer UI."""
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+        return {
+            "rows": 0,
+            "columns": 0,
+            "column_names": [],
+            "dtypes": {},
+            "missing": {},
+            "numeric_summary": {},
+            "preview_html": "",
+        }
+
+    columns = [str(col) for col in df.columns[:max_columns]]
+    dtypes = {str(col): str(dtype) for col, dtype in list(df.dtypes.items())[:max_columns]}
+    missing = {
+        str(col): int(count)
+        for col, count in df.isna().sum().items()
+        if int(count) > 0
+    }
+    # Keep the missing map readable.
+    missing = dict(list(missing.items())[:max_columns])
+
+    numeric = df.select_dtypes(include="number")
+    numeric_summary: dict[str, dict[str, Any]] = {}
+    if not numeric.empty:
+        desc = numeric.iloc[:, :max_columns].describe(include="all")
+        for col in desc.columns:
+            numeric_summary[str(col)] = {
+                str(stat): _jsonable(desc.loc[stat, col])
+                for stat in desc.index
+            }
+
+    try:
+        preview_html = df.head(preview_rows).to_html(
+            classes="dataframe-preview",
+            border=0,
+            index=True,
+            justify="left",
+            max_cols=max_columns,
+            escape=True,
+        )
+    except Exception:
+        preview_html = ""
+
+    return {
+        "rows": int(len(df)),
+        "columns": int(df.shape[1]),
+        "column_names": columns,
+        "dtypes": dtypes,
+        "missing": missing,
+        "numeric_summary": numeric_summary,
+        "preview_html": preview_html,
+    }
+
+
+def topic_dataset_summaries(
+    sector: str,
+    *,
+    sample_rows: int = 1500,
+    seed: int = 42,
+) -> list[dict[str, Any]]:
+    """Return per-file summaries for every parquet dataset in a zoo topic."""
+    sector_name = (sector or "").lower().strip()
+    if sector_name not in DATA_SCIENCE_SECTORS:
+        raise ValueError(f"Unknown sector '{sector}'.")
+
+    items: list[dict[str, Any]] = []
+    for path in list_zoo_datasets(sector_name):
+        entry: dict[str, Any] = {
+            "dataset_file": path.name,
+            "label": path.stem.replace("_", " ").title(),
+            "topic": sector_name,
+            "topic_label": sector_label(sector_name),
+        }
+        try:
+            full = load_zoo_dataset_file(sector_name, path.name)
+            sample = sample_zoo_dataframe(
+                sector_name,
+                rows=min(sample_rows, max(1, len(full))),
+                seed=seed,
+                dataset_file=path.name,
+            )
+            summary = summarize_dataframe(sample)
+            summary["full_rows"] = int(len(full))
+            summary["full_columns"] = int(full.shape[1])
+            entry["summary"] = summary
+            entry["ok"] = True
+        except Exception as exc:
+            entry["ok"] = False
+            entry["error"] = str(exc)
+            entry["summary"] = summarize_dataframe(pd.DataFrame())
+        items.append(entry)
+    return items
+
+
+def build_zoo_explore_notebook() -> list[dict[str, Any]]:
+    """Default notebook for the Data Zoo exploration sandbox."""
+    return [
+        {
+            "source": (
+                "import numpy as np\n"
+                "import pandas as pd\n"
+                "import matplotlib.pyplot as plt\n"
+                "# numpy / pandas / matplotlib are preloaded as np, pd, plt\n"
+                "# (sklearn / seaborn are not installed on the lite host)\n"
+            ),
+            "cell_type": "code",
+            "locked": True,
+            "role": "imports",
+        },
+        {
+            "source": "df.head()\n",
+            "cell_type": "code",
+            "locked": False,
+            "role": "work",
+        },
+        {
+            "source": "df.describe(include='all')\n",
+            "cell_type": "code",
+            "locked": False,
+            "role": "work",
+        },
+        {
+            "source": (
+                "# Example plot — edit freely\n"
+                "numeric = df.select_dtypes('number')\n"
+                "if numeric.shape[1]:\n"
+                "    numeric.iloc[:, 0].hist()\n"
+                "    plt.title(numeric.columns[0])\n"
+                "    plt.show()\n"
+            ),
+            "cell_type": "code",
+            "locked": False,
+            "role": "work",
+        },
     ]
 
 
@@ -434,6 +617,12 @@ EXERCISE_DEFAULT_SECTORS: dict[str, str] = {
     "descriptive_statistics": "marketing",
     "data_quality": "marketing",
     "missing_values": "healthcare",
+    "ml_data_prep": "marketing",
+    "ml_regression": "retail",
+    "ml_classification": "healthcare",
+    "ml_advanced_classification": "finance",
+    "ml_ensembles": "marketing",
+    "ml_unsupervised": "retail",
 }
 
 ZOO_BACKED_SOURCES = frozenset(EXERCISE_DEFAULT_SECTORS)

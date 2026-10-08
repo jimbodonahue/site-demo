@@ -1,0 +1,10 @@
+## License
+
+* The fonts included in `kpfonts-otf` are licensed under the
+SIL Open Font License, Version 1.1.
+This license is available with a FAQ at: http://scripts.sil.org/OFL
+* The other files are distributed under the terms of the LaTeX Project
+Public License from CTAN archives in directory macros/latex/base/lppl.txt.
+Either version 1.3 or, at your option, any later version.
+
+## Changes

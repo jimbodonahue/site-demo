@@ -1,15 +1,16 @@
 {% extends 'base.html' %}
 
-{% block title %}Choose your data field{% endblock %}
+{% block title %}Choose your data topics{% endblock %}
 
 {% block content %}
-<div class="max-w-2xl mx-auto bg-white rounded-xl shadow-md p-8">
-    <h1 class="text-3xl font-bold mb-2">Choose your data focus</h1>
-    <p class="text-gray-600 mb-6">
-        This is your first login. Pick a field and then choose one of the parquet datasets for that field.
+<div class="max-w-2xl mx-auto bg-white dark:bg-slate-800 rounded-xl shadow-md p-8">
+    <h1 class="text-3xl font-bold mb-2 text-slate-900 dark:text-white">Rank your Data Zoo topics</h1>
+    <p class="text-gray-600 dark:text-slate-300 mb-6">
+        Choose up to five preferred topics, ranked from most to least important.
+        Exercises default to your <strong>1st choice</strong>. You can leave lower ranks blank.
     </p>
 
-    <form method="post" class="space-y-6">
+    <form method="post" class="space-y-5">
         {% csrf_token %}
 
         {% if form.non_field_errors %}
@@ -18,16 +19,21 @@
         </div>
         {% endif %}
 
-        <div>
-            <label for="id_data_field" class="block text-sm font-medium text-gray-700 mb-1">Field</label>
-            {{ form.data_field }}
-            {% if form.data_field.errors %}
-                <p class="text-sm text-red-600 mt-1">{{ form.data_field.errors|join:', ' }}</p>
+        {% for field in form %}
+            {% if field.name != 'dataset_file' %}
+            <div>
+                <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}
+                    <p class="text-sm text-red-600 mt-1">{{ field.errors|join:', ' }}</p>
+                {% endif %}
+            </div>
             {% endif %}
-        </div>
+        {% endfor %}
 
-        <div>
-            <label for="id_dataset_file" class="block text-sm font-medium text-gray-700 mb-1">Dataset file</label>
+        <div class="pt-2 border-t border-slate-200 dark:border-slate-700">
+            <label for="{{ form.dataset_file.id_for_label }}" class="block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1">{{ form.dataset_file.label }}</label>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">Optional. If blank, exercises pick a dataset from your 1st-choice topic automatically.</p>
             {{ form.dataset_file }}
             {% if form.dataset_file.errors %}
                 <p class="text-sm text-red-600 mt-1">{{ form.dataset_file.errors|join:', ' }}</p>
@@ -35,46 +41,73 @@
         </div>
 
         <button type="submit" class="w-full py-3 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700">
-            Save my exercise preferences
+            Save my topic preferences
         </button>
     </form>
 </div>
 
+{{ dataset_map|json_script:"dataset-map-data" }}
 <script>
-const datasetsByField = {{ dataset_map|safe }};
-const fieldSelect = document.getElementById('id_data_field');
+const datasetsByField = JSON.parse(document.getElementById('dataset-map-data').textContent);
+const topic1Select = document.getElementById('id_topic_1');
 const datasetSelect = document.getElementById('id_dataset_file');
+const topicSelects = [
+    document.getElementById('id_topic_1'),
+    document.getElementById('id_topic_2'),
+    document.getElementById('id_topic_3'),
+    document.getElementById('id_topic_4'),
+    document.getElementById('id_topic_5'),
+].filter(Boolean);
 
 function updateDatasetChoices() {
-    const selectedField = fieldSelect.value;
+    if (!topic1Select || !datasetSelect) return;
+    const selectedField = topic1Select.value;
     const options = datasetsByField[selectedField] || [];
     const currentValue = datasetSelect.value;
 
     datasetSelect.innerHTML = '';
-    if (!options.length) {
-        const fallback = document.createElement('option');
-        fallback.value = '';
-        fallback.textContent = 'No datasets available';
-        datasetSelect.appendChild(fallback);
-        return;
-    }
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '— auto-select —';
+    datasetSelect.appendChild(blank);
 
     options.forEach((name) => {
         const option = document.createElement('option');
         option.value = name;
         option.textContent = name;
-        if (currentValue === name) {
-            option.selected = true;
-        }
+        if (currentValue === name) option.selected = true;
         datasetSelect.appendChild(option);
     });
 
-    if (!options.includes(currentValue) && options.length) {
-        datasetSelect.value = options[0];
+    if (currentValue && !options.includes(currentValue)) {
+        datasetSelect.value = '';
     }
 }
 
-fieldSelect.addEventListener('change', updateDatasetChoices);
+function preventDuplicateSelections(changedSelect) {
+    const chosen = new Set(
+        topicSelects.map((el) => el.value).filter((value) => value)
+    );
+    topicSelects.forEach((select) => {
+        if (select === changedSelect) return;
+        Array.from(select.options).forEach((option) => {
+            if (!option.value) {
+                option.disabled = false;
+                return;
+            }
+            option.disabled = chosen.has(option.value) && option.value !== select.value;
+        });
+    });
+}
+
+topicSelects.forEach((select) => {
+    select.addEventListener('change', () => {
+        preventDuplicateSelections(select);
+        if (select === topic1Select) updateDatasetChoices();
+    });
+});
+
 updateDatasetChoices();
+preventDuplicateSelections(topic1Select);
 </script>
 {% endblock %}

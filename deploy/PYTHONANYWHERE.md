@@ -1,5 +1,7 @@
 # Deploy on PythonAnywhere
 
+Free accounts have ~512MB disk. This lite tree + slim `.venv` is designed to stay under **500MB** (no scikit-learn / xgboost / seaborn / pyarrow). Keep the virtualenv under `~/.virtualenvs/` so project and venv share the same quota.
+
 ## 1. Create the web app
 
 1. Web → **Add a new web app** → **Manual configuration** (not the Django wizard).

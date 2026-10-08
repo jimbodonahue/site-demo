@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete account{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto space-y-6">
+  <div>
+    <a href="{% url 'membership' %}" class="text-sm font-semibold text-sky-600 dark:text-sky-400 hover:underline">&larr; Back to My Account</a>
+    <h1 class="mt-3 text-3xl font-bold text-slate-900 dark:text-white">Delete account</h1>
+    <p class="mt-2 text-slate-600 dark:text-slate-300">
+      Your account and associated data will be deleted within 48 hours after you confirm.
+      An administrator will be notified. If the account is not removed manually sooner, it is deleted automatically after that period.
+      This cannot be undone.
+    </p>
+  </div>
+
+  <form method="post" class="space-y-5 rounded-2xl border border-red-200 bg-white p-6 shadow-sm dark:border-red-900 dark:bg-slate-800">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div>
+      <label for="{{ form.reason.id_for_label }}" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">{{ form.reason.label }}</label>
+      {{ form.reason }}
+      {% if form.reason.errors %}
+        <p class="mt-2 text-sm text-red-600">{{ form.reason.errors|join:", " }}</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <label for="{{ form.details.id_for_label }}" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">{{ form.details.label }}</label>
+      {{ form.details }}
+    </div>
+
+    <div>
+      <label for="{{ form.feedback.id_for_label }}" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">{{ form.feedback.label }}</label>
+      {{ form.feedback }}
+    </div>
+
+    <div class="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/40">
+      {{ form.confirm }}
+      <label for="{{ form.confirm.id_for_label }}" class="text-sm text-red-950 dark:text-red-100">{{ form.confirm.label }}</label>
+    </div>
+    {% if form.confirm.errors %}
+      <p class="text-sm text-red-600">{{ form.confirm.errors|join:", " }}</p>
+    {% endif %}
+
+    <div class="flex justify-end gap-3 pt-2">
+      <a href="{% url 'membership' %}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200">Cancel</a>
+      <button type="submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500">
+        Confirm deletion request
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

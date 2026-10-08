@@ -1,3 +1,1 @@
-from django.contrib import admin
-
-# Courses admin retired — learning tracks are managed under the exercises app.
+# No admin models; curriculum was replaced by exercises tracks.

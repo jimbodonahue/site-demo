@@ -1,0 +1,14 @@
+{
+  "assign_answer_suffix": " Assign the result to `answer`.",
+  "summary_max": "What is the maximum {column} in the dataset?",
+  "summary_min": "What is the minimum {column} in the dataset?",
+  "summary_median": "What is the median {column} in the dataset?",
+  "summary_mean_rounded": "What is the mean {column} in the dataset? Round to 2 decimal places.",
+  "summary_count_value": "How many rows have {column} equal to '{value}'?",
+  "summary_nunique": "How many unique values does the '{column}' column have?",
+  "summary_nrows": "How many rows are in the dataset?",
+  "summary_ncols": "How many columns are in the dataset?",
+  "subset": "Return a dataframe with the {columns} of all rows where {conditions}. Assign the result to `df`.",
+  "sorted_subset": "Return a dataframe with the {columns} of all rows where {conditions}, {sort_phrase}. Assign the result to `df`.",
+  "sort_phrase": "sorted by {column} in {direction} order"
+}

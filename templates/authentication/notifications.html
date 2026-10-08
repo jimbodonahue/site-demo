@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Notifications</h1>
+        <p class="mt-2 text-slate-600 dark:text-slate-300">Connection requests, shared contact details, and forum moderation notices.</p>
+    </div>
+
+    {% if notifications %}
+        <ul class="space-y-4">
+            {% for item in notifications %}
+                <li class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 {% if not item.is_read %}ring-2 ring-primary-200 dark:ring-primary-800{% endif %}">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            {% if item.notification_type == 'connection_request' %}
+                                <p class="text-slate-900 dark:text-white">
+                                    <strong>{% if item.actor %}{% include "authentication/_author_name.html" with author=item.actor %}{% else %}Someone{% endif %}</strong>
+                                    wants to connect with you.
+                                </p>
+                                {% if item.connection and item.connection.status == 'pending' %}
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        <form method="post" action="{% url 'respond_connection' item.pk %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="accept">
+                                            <button type="submit" class="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700">Accept</button>
+                                        </form>
+                                        <form method="post" action="{% url 'respond_connection' item.pk %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="decline">
+                                            <button type="submit" class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200">Decline</button>
+                                        </form>
+                                    </div>
+                                {% endif %}
+                            {% elif item.notification_type == 'connection_accepted' %}
+                                <p class="text-slate-900 dark:text-white">
+                                    <strong>{% if item.actor %}{% include "authentication/_author_name.html" with author=item.actor %}{% else %}Someone{% endif %}</strong>
+                                    accepted your connection request. You can share contact details from their profile.
+                                </p>
+                            {% elif item.notification_type == 'contact_shared' %}
+                                <p class="text-slate-900 dark:text-white">
+                                    <strong>{% if item.actor %}{% include "authentication/_author_name.html" with author=item.actor %}{% else %}Someone{% endif %}</strong>
+                                    shared contact details with you.
+                                </p>
+                                {% if item.contact_payload %}
+                                    <form method="post" action="{% url 'reveal_contact' item.pk %}" class="mt-3">
+                                        {% csrf_token %}
+                                        <button type="submit" class="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700">View contact details</button>
+                                    </form>
+                                    <p class="mt-2 text-xs text-slate-500">After you view them, they are removed and not stored.</p>
+                                {% else %}
+                                    <p class="mt-2 text-sm text-slate-500">Already viewed — not stored on the server.</p>
+                                {% endif %}
+                            {% elif item.notification_type == 'forum_violation' %}
+                                <p class="text-slate-900 dark:text-white font-semibold">Forum Terms of Service notice</p>
+                                <p class="mt-2 text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{{ item.message }}</p>
+                                <p class="mt-3 text-sm">
+                                    <a href="{% url 'terms_of_service' %}" class="font-medium text-primary-600 hover:underline dark:text-primary-400">Read the Terms of Service</a>
+                                </p>
+                            {% endif %}
+                            <p class="mt-2 text-xs text-slate-500">{{ item.created_at|date:"M j, Y, g:i a" }}</p>
+                        </div>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="text-slate-600 dark:text-slate-300">No notifications yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

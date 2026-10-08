@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Badges{% endblock %}
+{% block content %}
+<section class="max-w-5xl mx-auto py-8 px-4 space-y-6">
+  <div class="bg-slate-900 text-white rounded-3xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+      <p class="text-xs text-slate-400 uppercase tracking-[0.2em] font-semibold">Progress</p>
+      <h1 class="text-3xl font-bold text-white mt-1">Badges</h1>
+      <p class="mt-2 text-sm text-slate-300">
+        Earned on your passkey account as {{ forum_user.get_display_name|default:forum_user.username|default:"Anonymous User" }}
+        {% if forum_token %}
+          <span class="ml-2 text-xs font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">{{ forum_token|slice:":8" }}...</span>
+        {% endif %}
+      </p>
+      <p class="mt-2 text-xs text-slate-400">
+        Badges stay with this membership.
+        <a href="{% url 'membership' %}#badges" class="font-semibold text-sky-300 hover:text-sky-200">My Account</a>
+        {% if profile_nickname %}
+          · <a href="{% url 'public_profile' profile_nickname %}" class="font-semibold text-sky-300 hover:text-sky-200">Public profile</a>
+        {% endif %}
+      </p>
+    </div>
+    <div class="rounded-2xl bg-slate-800 border border-slate-700 px-5 py-3 text-center">
+      <div class="text-2xl font-bold text-sky-300">{{ earned_count }}/{{ total_count }}</div>
+      <div class="text-xs text-slate-400 uppercase tracking-wide">Unlocked</div>
+    </div>
+  </div>
+
+  {% for section in sections %}
+    <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 space-y-4">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">{{ section.label }}</p>
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white mt-1">{{ section.label }} badges</h2>
+      </div>
+      <ul class="grid gap-4 sm:grid-cols-2">
+        {% for item in section.items %}
+          <li class="rounded-2xl border px-4 py-4 {% if item.earned %}border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-950/40{% else %}border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 opacity-80{% endif %}">
+            <div class="flex items-start gap-3">
+              <div class="text-3xl leading-none {% if not item.earned %}grayscale{% endif %}">{{ item.badge.icon }}</div>
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h3 class="font-semibold text-slate-900 dark:text-white">{{ item.badge.name }}</h3>
+                  {% if item.earned %}
+                    <span class="inline-flex items-center rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">Earned</span>
+                    {% if item.badge.is_repeatable and item.earn_count > 1 %}
+                      <span class="inline-flex items-center rounded-full bg-sky-100 dark:bg-sky-900/40 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200">×{{ item.earn_count }}</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="inline-flex items-center rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Locked</span>
+                  {% endif %}
+                </div>
+                <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ item.badge.description }}</p>
+                {% if item.earned %}
+                  <p class="mt-2 text-xs text-slate-400">
+                    {% if item.badge.is_repeatable %}
+                      Collected {{ item.earn_count }} time{{ item.earn_count|pluralize }} · latest {{ item.earned.earned_at|date:"M j, Y" }}
+                    {% else %}
+                      Unlocked {{ item.earned.earned_at|date:"M j, Y" }}
+                    {% endif %}
+                  </p>
+                {% endif %}
+              </div>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% empty %}
+    <p class="text-slate-600 dark:text-slate-300">No badges are configured yet.</p>
+  {% endfor %}
+</section>
+{% endblock %}

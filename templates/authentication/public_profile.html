@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ profile.nickname }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <div class="flex flex-col sm:flex-row sm:items-start gap-6">
+            {% if profile.photo %}
+                <img src="{{ profile.photo.url }}" alt="{{ profile.nickname }}" class="h-24 w-24 rounded-full object-cover border border-slate-200 dark:border-slate-600">
+            {% else %}
+                <div class="h-24 w-24 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-2xl font-semibold text-slate-600 dark:text-slate-300">
+                    {{ profile.nickname|slice:":1"|upper }}
+                </div>
+            {% endif %}
+            <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">{{ profile.nickname }}</h1>
+                    {% if profile.user.is_forum_moderator %}
+                        {% include "authentication/_moderator_badge.html" %}
+                    {% endif %}
+                </div>
+                {% if profile.short_description %}
+                    <p class="mt-2 text-slate-600 dark:text-slate-300">{{ profile.short_description }}</p>
+                {% endif %}
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                    {% if is_own_profile %}
+                        <a href="{% url 'membership' %}" class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Edit membership</a>
+                        <a href="{% url 'badges:index' %}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">My badges</a>
+                    {% else %}
+                        {% if connection and connection.status == 'accepted' %}
+                            <span class="inline-flex items-center rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm font-medium text-green-800 dark:border-green-700 dark:bg-green-950 dark:text-green-200">Connected</span>
+                            <button type="button" onclick="document.getElementById('share-contact-modal').classList.remove('hidden')"
+                                    class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
+                                Share contact details
+                            </button>
+                        {% elif connection and connection.status == 'pending' %}
+                            <span class="inline-flex items-center rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">Request pending</span>
+                        {% else %}
+                            <form method="post" action="{% url 'request_connection' profile.nickname %}">
+                                {% csrf_token %}
+                                <button type="submit" class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Connect</button>
+                            </form>
+                        {% endif %}
+
+                        {% if i_blocked_them %}
+                            <form method="post" action="{% url 'unblock_user' profile.nickname %}">
+                                {% csrf_token %}
+                                <button type="submit" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">Unblock</button>
+                            </form>
+                        {% else %}
+                            <form method="post" action="{% url 'block_user' profile.nickname %}" onsubmit="return confirm('Block this member? They will not be told.');">
+                                {% csrf_token %}
+                                <button type="submit" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">Block</button>
+                            </form>
+                        {% endif %}
+
+                        <a href="{% url 'forum:alert_admin' %}?user={{ profile.nickname|urlencode }}&from={{ request.get_full_path|urlencode }}"
+                           class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-900/50">
+                            Alert Admin
+                        </a>
+                    {% endif %}
+                </div>
+
+                {% if can_moderate_forum %}
+                <div class="mt-4 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/60 p-4 space-y-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Forum moderation</p>
+                    {% if target_forum_suspended %}
+                        <p class="text-sm text-amber-800 dark:text-amber-200">
+                            Forum access is currently suspended
+                            {% if profile_user.forum_suspended_until %}
+                                until {{ profile_user.forum_suspended_until|date:"M j, Y H:i" }} UTC
+                            {% else %}
+                                indefinitely
+                            {% endif %}.
+                            Exercises remain available.
+                        </p>
+                        <form method="post" action="{% url 'forum:unsuspend_user' profile.nickname %}">
+                            {% csrf_token %}
+                            <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500">
+                                Restore forum access
+                            </button>
+                        </form>
+                    {% else %}
+                        <form method="post" action="{% url 'forum:suspend_user' profile.nickname %}" class="space-y-3"
+                              onsubmit="return confirm('Suspend this member from the forum? They will still be able to use exercises.');">
+                            {% csrf_token %}
+                            <div class="flex flex-wrap gap-3 items-end">
+                                <div>
+                                    <label for="suspend-days" class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Days (blank = indefinite)</label>
+                                    <input type="number" min="1" name="days" id="suspend-days" placeholder="e.g. 7"
+                                           class="w-28 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+                                </div>
+                                <div class="flex-1 min-w-[12rem]">
+                                    <label for="suspend-note" class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Internal note</label>
+                                    <input type="text" name="note" id="suspend-note" maxlength="500" placeholder="Optional"
+                                           class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100">
+                                </div>
+                                <button type="submit" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500">
+                                    Suspend forum
+                                </button>
+                            </div>
+                        </form>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if is_own_profile and target_forum_suspended %}
+                <div class="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100">
+                    Your forum access is suspended. You can still practice exercises.
+                    <a href="{% url 'forum:code_of_conduct' %}" class="font-semibold underline">Code of Conduct</a>
+                    ·
+                    <a href="{% url 'forum:alert_admin' %}" class="font-semibold underline">Alert Admin</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% include "badges/_earned_badges.html" with earned_badges=earned_badges show_gallery_link=is_own_profile show_empty=is_own_profile %}
+
+        {% if profile.motivation %}
+            <div class="mt-8 border-t border-slate-200 pt-6 dark:border-slate-700">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">About me</h2>
+                <p class="about-me-prose mt-2 whitespace-pre-wrap text-slate-700 dark:text-slate-300">{{ profile.motivation }}</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if not is_own_profile and connection and connection.status == 'accepted' %}
+<div id="share-contact-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-xl ring-1 ring-slate-200 dark:ring-slate-700">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white">Share contact details</h3>
+            <button type="button" onclick="document.getElementById('share-contact-modal').classList.add('hidden')" class="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200" aria-label="Close">✕</button>
+        </div>
+        <p class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 mb-4">
+            Only share personal information with people you trust. Once sent, we do not keep a copy after they view it. You can share with this member at most once every 72 hours.
+        </p>
+        {% if share_retry_after and not can_share %}
+            <p class="text-sm text-slate-600 dark:text-slate-300">You can share again after {{ share_retry_after }}.</p>
+        {% else %}
+            <form method="post" action="{% url 'share_contact' profile.nickname %}" class="space-y-3">
+                {% csrf_token %}
+                <label for="{{ share_form.contact_details.id_for_label }}" class="block text-sm font-medium text-slate-700 dark:text-slate-200">{{ share_form.contact_details.label }}</label>
+                {{ share_form.contact_details }}
+                <p class="text-xs text-slate-500">{{ share_form.contact_details.help_text }}</p>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="document.getElementById('share-contact-modal').classList.add('hidden')" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">Cancel</button>
+                    <button type="submit" class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Send</button>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

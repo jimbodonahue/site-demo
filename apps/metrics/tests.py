@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import AnonymousUsageEvent
+from apps.metrics.models import AnonymousUsageEvent
 
 
 class AnonymousMetricsTests(TestCase):

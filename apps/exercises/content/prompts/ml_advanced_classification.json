@@ -1,0 +1,5 @@
+{
+  "easy": "The pre-split binary target (from `{target}`) is intentionally imbalanced. Train tree / logreg / SVM and report accuracy, precision, recall, and F1 for each in `answer['metrics']`. Set `answer['most_important_metric']` to `'recall'`.",
+  "medium": "On the imbalanced binary problem from `{target}`, compare default vs class-weighted logistic regression, then choose a threshold \u2260 0.5 to prioritize {goal}. Store `answer['default_f1']`, `answer['weighted_f1']`, `answer['threshold']`, and `answer['goal_score']`.",
+  "hard": "Treat `{target}` as multi-class. Compare tree vs logistic regression with {k}-fold stratified CV. Report macro/micro F1 dicts and `answer['best_model']`, and set `answer['calibrated']=True` after calibrating logistic regression."
+}

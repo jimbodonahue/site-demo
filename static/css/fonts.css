@@ -1,0 +1,145 @@
+/* Self-hosted typefaces for the learning platform.
+   - DejaVu Sans: default UI / body
+   - Georgia: system serif for selected editorial accents
+   - KpSans (KP Fonts): forum surfaces
+   - Bitstream Vera Sans Mono: code and monospace UI
+*/
+
+@font-face {
+  font-family: "DejaVu Sans";
+  src: url("../fonts/dejavu-sans/DejaVuSans.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "DejaVu Sans";
+  src: url("../fonts/dejavu-sans/DejaVuSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "DejaVu Sans";
+  src: url("../fonts/dejavu-sans/DejaVuSans-Oblique.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "DejaVu Sans";
+  src: url("../fonts/dejavu-sans/DejaVuSans-BoldOblique.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "KpSans";
+  src: url("../fonts/kpsans/KpSans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "KpSans";
+  src: url("../fonts/kpsans/KpSans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "KpSans";
+  src: url("../fonts/kpsans/KpSans-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "KpSans";
+  src: url("../fonts/kpsans/KpSans-BoldItalic.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bitstream Vera Sans Mono";
+  src: url("../fonts/bitstream-vera-mono/BitstreamVeraSansMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bitstream Vera Sans Mono";
+  src: url("../fonts/bitstream-vera-mono/BitstreamVeraSansMono-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bitstream Vera Sans Mono";
+  src: url("../fonts/bitstream-vera-mono/BitstreamVeraSansMono-Oblique.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bitstream Vera Sans Mono";
+  src: url("../fonts/bitstream-vera-mono/BitstreamVeraSansMono-BoldOblique.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --font-sans: "DejaVu Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Georgia, "Times New Roman", Times, serif;
+  --font-forum: "KpSans", "DejaVu Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Bitstream Vera Sans Mono", ui-monospace, "Cascadia Code", monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Editorial accents — Georgia for selected supportive / reflective surfaces */
+.font-serif,
+.prose-editorial,
+.soft-skill-prompt,
+.about-me-prose,
+.about-me-prose textarea,
+#soft_skill_response,
+.hero-display {
+  font-family: var(--font-serif);
+}
+
+/* Forum uses KP Fonts (KpSans) */
+.font-forum,
+body.font-forum,
+.forum-surface {
+  font-family: var(--font-forum);
+}
+
+/* All code and monospace UI */
+code,
+kbd,
+samp,
+pre,
+.font-mono,
+.cm-editor,
+.CodeMirror,
+.notebook-cell,
+.token-chip,
+.dataframe-preview {
+  font-family: var(--font-mono);
+}

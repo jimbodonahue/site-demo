@@ -1,9 +1,12 @@
 import json
 import re
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+
+from project_core.ratelimit import check_rate_limit
 
 from .models import AnonymousUsageEvent
 
@@ -46,8 +49,22 @@ def record_events(request):
 	"""Accept a batch of anonymous usage events. No authentication required.
 
 	CSRF is exempt so page-leave beacons can flush reliably. Events are anonymous,
-	validated, and capped per request.
+	validated, capped per request, and rate limited per IP so the table cannot be
+	flooded by an unauthenticated client.
 	"""
+	allowed, retry_after = check_rate_limit(
+		request,
+		action="metrics_ingest",
+		limit=getattr(settings, "METRICS_RATE_LIMIT", 60),
+		window_seconds=getattr(settings, "METRICS_RATE_WINDOW", 60),
+		by_ip_only=True,
+	)
+	if not allowed:
+		return JsonResponse(
+			{"success": False, "error": "Too many events.", "retry_after": retry_after},
+			status=429,
+		)
+
 	try:
 		payload = json.loads(request.body or b"{}")
 	except json.JSONDecodeError:
@@ -84,4 +101,20 @@ def record_events(request):
 		return JsonResponse({"success": False, "error": "No valid events."}, status=400)
 
 	AnonymousUsageEvent.objects.bulk_create(to_create)
+
+	# Signed-in learners also accrue platform time for one-time engagement badges.
+	user = getattr(request, "user", None)
+	if user is not None and getattr(user, "is_authenticated", False):
+		presence_events = {
+			AnonymousUsageEvent.EVENT_HEARTBEAT,
+			AnonymousUsageEvent.EVENT_PAGE_VIEW,
+			AnonymousUsageEvent.EVENT_PAGE_LEAVE,
+			AnonymousUsageEvent.EVENT_CODE_RUN,
+			AnonymousUsageEvent.EVENT_EVALUATE,
+		}
+		if any(event.event_type in presence_events for event in to_create):
+			from apps.badges.services import record_platform_presence
+
+			record_platform_presence(user)
+
 	return JsonResponse({"success": True, "recorded": len(to_create)})

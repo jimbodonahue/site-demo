@@ -1,0 +1,5 @@
+{
+  "easy": "Using the pre-split arrays for `{target}`, train RandomForest (n_estimators={rf_trees}, max_depth=4) and XGBClassifier (n_estimators={xgb_trees}, max_depth=3). Set `answer['best_model']` to `'random_forest'` or `'xgboost'`, plus `answer['rf_accuracy']` and `answer['xgb_accuracy']`.",
+  "medium": "Split `df` (target `{target}`). Tune `{family}` on {param_keys}. Report best test {metric} in `answer['score']`, plus `answer['family']` and `answer['best_params']`.",
+  "hard": "Split `df` (target `{target}`), scale with {scaler}, optionally drop {dropped}, then fit `{family}`. Report `answer['score']`, `answer['family']`, `answer['scaler']`, `answer['dropped_columns']`, and `answer['best_params']`."
+}

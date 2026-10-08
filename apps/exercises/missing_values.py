@@ -15,11 +15,12 @@ import numpy as np
 import pandas as pd
 
 from apps.exercises.data_zoo import load_zoo_dataset_file
+from apps.exercises.table_io import TABLE_SUFFIX, read_table, write_table
 
 CACHE_DIR = Path(__file__).resolve().parent / "zoo_data" / "_missing_values_cache"
 UNAVAILABLE_MESSAGE = "This data set is unavailable."
 DEFAULT_SECTOR = "healthcare"
-DEFAULT_DATASET_FILE = "01_heart_disease_cleveland.parquet"
+DEFAULT_DATASET_FILE = f"01_heart_disease_cleveland{TABLE_SUFFIX}"
 
 
 class DatasetUnavailableError(ValueError):
@@ -177,7 +178,7 @@ def _ensure_cache_dir() -> Path:
 def _meta_paths(sector: str, dataset_file: str, difficulty: str, seed: int) -> tuple[Path, Path]:
 	cache_dir = _ensure_cache_dir()
 	key = _cache_key(sector, dataset_file, difficulty, seed)
-	return cache_dir / f"{key}.parquet", cache_dir / f"{key}.json"
+	return cache_dir / f"{key}{TABLE_SUFFIX}", cache_dir / f"{key}.json"
 
 
 def _generated_meta_paths(
@@ -185,7 +186,7 @@ def _generated_meta_paths(
 ) -> tuple[Path, Path]:
 	cache_dir = _ensure_cache_dir()
 	key = _generated_cache_key(sector, difficulty, seed, n_rows)
-	return cache_dir / f"{key}.parquet", cache_dir / f"{key}.json"
+	return cache_dir / f"{key}{TABLE_SUFFIX}", cache_dir / f"{key}.json"
 
 
 def load_missing_values_meta(data_state: dict[str, Any]) -> dict[str, Any]:
@@ -354,10 +355,10 @@ def prepare_missing_values_exercise(data_state: dict[str, Any]) -> dict[str, Any
 		difficulty = "easy"
 	seed = int(data_state.get("seed", 42))
 
-	parquet_path, meta_path = _meta_paths(sector, dataset_file, difficulty, seed)
+	table_path, meta_path = _meta_paths(sector, dataset_file, difficulty, seed)
 
-	if parquet_path.exists() and meta_path.exists():
-		df = pd.read_parquet(parquet_path)
+	if table_path.exists() and meta_path.exists():
+		df = read_table(table_path)
 		meta = json.loads(meta_path.read_text(encoding="utf-8"))
 		target = meta["target"]
 		outcome = meta["outcome"]
@@ -387,7 +388,7 @@ def prepare_missing_values_exercise(data_state: dict[str, Any]) -> dict[str, Any
 			"seed": seed,
 			**inject_meta,
 		}
-		df.to_parquet(parquet_path, index=False)
+		write_table(df, table_path)
 		meta_path.write_text(json.dumps(meta), encoding="utf-8")
 
 	baseline = df.copy()
@@ -416,10 +417,10 @@ def prepare_generated_missing_values_exercise(data_state: dict[str, Any]) -> dic
 	seed = int(data_state.get("seed", 42) or 42)
 	n_rows = int(data_state.get("n_rows", 80) or 80)
 
-	parquet_path, meta_path = _generated_meta_paths(sector, difficulty, seed, n_rows)
+	table_path, meta_path = _generated_meta_paths(sector, difficulty, seed, n_rows)
 
-	if parquet_path.exists() and meta_path.exists():
-		df = pd.read_parquet(parquet_path)
+	if table_path.exists() and meta_path.exists():
+		df = read_table(table_path)
 		meta = json.loads(meta_path.read_text(encoding="utf-8"))
 		target = meta["target"]
 		outcome = meta["outcome"]
@@ -444,7 +445,7 @@ def prepare_generated_missing_values_exercise(data_state: dict[str, Any]) -> dic
 			"n_rows": n_rows,
 			**inject_meta,
 		}
-		df.to_parquet(parquet_path, index=False)
+		write_table(df, table_path)
 		meta_path.write_text(json.dumps(meta), encoding="utf-8")
 
 	baseline = df.copy()

@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Account deletion scheduled{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-800 space-y-4">
+  <h1 class="text-2xl font-bold text-slate-900 dark:text-white">
+    {% if just_submitted %}Deletion requested{% else %}Deletion already scheduled{% endif %}
+  </h1>
+  <p class="text-sm text-slate-600 dark:text-slate-300">
+    {% if just_submitted %}
+      Thank you. An administrator has been notified.
+    {% endif %}
+    Your account and associated data will be deleted by
+    <strong class="text-slate-900 dark:text-white">{{ deletion_request.scheduled_delete_at|date:"F j, Y, g:i a" }} UTC</strong>
+    (within 48 hours of the request). If an admin does not remove it sooner, deletion happens automatically.
+  </p>
+  <p class="text-sm text-slate-600 dark:text-slate-300">
+    You have been signed out. Creating a new passkey later starts a fresh account; previous progress cannot be recovered after deletion.
+  </p>
+  <a href="{% url 'home' %}" class="inline-flex rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500">Back to home</a>
+</div>
+{% endblock %}

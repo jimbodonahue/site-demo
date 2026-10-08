@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
-from datetime import timedelta
 import os
 from pathlib import Path
 import sys
@@ -19,41 +18,72 @@ from dotenv import load_dotenv
 
 # Sandbox workers must not reload host secrets from .env.
 IS_EXERCISE_SANDBOX_WORKER = os.getenv("EXERCISE_SANDBOX_WORKER") == "1"
-if not IS_EXERCISE_SANDBOX_WORKER:
-	# Load .env from the project root (works on PythonAnywhere even if CWD differs).
-	BASE_DIR_FOR_ENV = Path(__file__).resolve().parent.parent
-	load_dotenv(BASE_DIR_FOR_ENV / ".env")
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+if not IS_EXERCISE_SANDBOX_WORKER:
+    # Explicit path so PythonAnywhere loads .env even when CWD differs.
+    load_dotenv(BASE_DIR / ".env")
 sys.path.insert(0, str(BASE_DIR))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = (
-	"exercise-sandbox-worker-key-not-for-crypto"
-	if IS_EXERCISE_SANDBOX_WORKER
-	else (os.getenv("DJANGO_SECRET_KEY") or "fallback-secret-key")
-)
+_WEAK_SECRET_KEYS = {
+    "",
+    "fallback-secret-key",
+    "guest",
+    "changeme",
+    "secret",
+    "django-insecure",
+}
+
+
+def _resolve_secret_key() -> str:
+    if IS_EXERCISE_SANDBOX_WORKER:
+        # Worker never signs cookies/tokens; keep a non-secret placeholder.
+        return "exercise-sandbox-worker-key-not-for-crypto"
+    key = (os.getenv("DJANGO_SECRET_KEY") or "").strip().strip("'").strip('"')
+    server = os.getenv("SERVER", "development")
+    if server != "development":
+        if not key or key.lower() in _WEAK_SECRET_KEYS or len(key) < 32:
+            raise RuntimeError(
+                "DJANGO_SECRET_KEY must be set to a strong value (≥32 chars) when SERVER is not development."
+            )
+        return key
+    if not key or key.lower() in _WEAK_SECRET_KEYS:
+        # Development convenience only — never used in production.
+        return "dev-only-insecure-secret-key-change-me-32b"
+    return key
+
+
+SECRET_KEY = _resolve_secret_key()
 SERVER = os.getenv("SERVER", "development")
 
 # Notebook run endpoint rate limit (per session+IP window).
 EXERCISE_RUN_RATE_LIMIT = int(os.getenv("EXERCISE_RUN_RATE_LIMIT", "30"))
 EXERCISE_RUN_RATE_WINDOW = int(os.getenv("EXERCISE_RUN_RATE_WINDOW", "60"))
+# Must stay comfortably below the gunicorn worker timeout so a slow notebook
+# returns an error to the student instead of having its worker killed.
+EXERCISE_RUN_TIMEOUT = int(os.getenv("EXERCISE_RUN_TIMEOUT", "45"))
+# Number of proxies that append to X-Forwarded-For in front of the app.
+# 0 means X-Forwarded-For is untrusted and REMOTE_ADDR is used instead.
+TRUSTED_PROXY_COUNT = int(os.getenv("TRUSTED_PROXY_COUNT", "0"))
 EXERCISE_ENABLE_RESOURCE_LIMITS = os.getenv("EXERCISE_ENABLE_RESOURCE_LIMITS", "1") != "0"
 EXERCISE_ENABLE_SECOND_SEED = os.getenv("EXERCISE_ENABLE_SECOND_SEED", "1") != "0"
 if "test" in sys.argv:
-	EXERCISE_RUN_RATE_LIMIT = 10_000
-	EXERCISE_ENABLE_RESOURCE_LIMITS = False
-	EXERCISE_ENABLE_SECOND_SEED = False
+    EXERCISE_RUN_RATE_LIMIT = 10_000
+    EXERCISE_ENABLE_RESOURCE_LIMITS = False
+    EXERCISE_ENABLE_SECOND_SEED = False
+# Worker subprocesses inherit explicit flags via env (see run_notebook).
 if IS_EXERCISE_SANDBOX_WORKER:
-	EXERCISE_ENABLE_RESOURCE_LIMITS = os.getenv("EXERCISE_ENABLE_RESOURCE_LIMITS", "1") != "0"
-	EXERCISE_ENABLE_SECOND_SEED = os.getenv("EXERCISE_ENABLE_SECOND_SEED", "1") != "0"
+    EXERCISE_ENABLE_RESOURCE_LIMITS = os.getenv("EXERCISE_ENABLE_RESOURCE_LIMITS", "1") != "0"
+    EXERCISE_ENABLE_SECOND_SEED = os.getenv("EXERCISE_ENABLE_SECOND_SEED", "1") != "0"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = SERVER == "development"
+if SERVER == "development":
+    DEBUG = True
+else:
+    DEBUG = False
 
 
 def _csv_env(name, default):
@@ -61,10 +91,13 @@ def _csv_env(name, default):
 
 
 # Always honor ALLOWED_HOSTS from the environment when set (needed on PythonAnywhere).
-ALLOWED_HOSTS = _csv_env(
-    "ALLOWED_HOSTS",
-    "localhost,127.0.0.1,[::1]" if DEBUG else "localhost",
-)
+_env_hosts = _csv_env("ALLOWED_HOSTS", "")
+if _env_hosts:
+    ALLOWED_HOSTS = _env_hosts
+elif DEBUG:
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
+else:
+    ALLOWED_HOSTS = ["localhost"]
 
 # Application definition
 INSTALLED_APPS = [
@@ -74,30 +107,37 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "django.contrib.humanize",
     "django.contrib.sitemaps",
-    # Third party apps
-    "rest_framework",
-    "rest_framework_simplejwt.token_blacklist",
-    "corsheaders",
     # Local apps
     "apps.authentication",
-    "apps.courses",
+    "apps.courses",  # migration history only; curriculum replaced by exercises tracks
     "apps.exercises",
+    "apps.forum",
+    "apps.challenges",
+    "apps.badges",
     "apps.metrics",
+    "apps.sitepages",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.sitepages.middleware.SiteAccessMiddleware",
 ]
+
+# Shared classroom gate password. Empty string disables the gate.
+# During `manage.py test`, default to disabled so the suite stays usable;
+# gate behavior is covered with @override_settings in sitepages tests.
+SITE_ACCESS_PASSWORD = os.getenv(
+    "SITE_ACCESS_PASSWORD",
+    "" if "test" in sys.argv else "redischoolstudent",
+)
 
 ROOT_URLCONF = "project_core.urls"
 
@@ -112,6 +152,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.authentication.context_processors.unread_notification_count",
             ],
         },
     },
@@ -123,7 +164,7 @@ WSGI_APPLICATION = "project_core.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 # DB_ENGINE: sqlite (default, good for PythonAnywhere free) | postgresql | mysql
-DB_ENGINE = os.getenv("DB_ENGINE", "sqlite").lower()
+DB_ENGINE = os.getenv("DB_ENGINE", "sqlite" if SERVER != "production" else "postgresql").lower()
 
 if DB_ENGINE == "postgresql":
     DATABASES = {
@@ -227,15 +268,9 @@ LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "home"
 LOGIN_URL = "login"
 
-# CORS Settings
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = _csv_env(
-    "CORS_ALLOWED_ORIGINS",
-    "http://localhost:3000,http://localhost:8000",
-)
 CSRF_TRUSTED_ORIGINS = _csv_env(
     "CSRF_TRUSTED_ORIGINS",
-    "http://localhost:3000,http://localhost:8000",
+    "http://localhost:8000",
 )
 
 # Security Settings for Production
@@ -263,32 +298,54 @@ else:
     CSRF_COOKIE_HTTPONLY = True
     CSRF_COOKIE_SAMESITE = "Lax"
 
-# Cache settings (can be configured later based on needs)
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+# Rate limit counters live in the cache, so LocMemCache only works for a single
+# process. Point REDIS_URL at a shared instance in production or the limits are
+# enforced per worker rather than per site.
+REDIS_URL = os.getenv("REDIS_URL", "")
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-# EMAIL_HOST = "in-v3.mailjet.com"
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-# EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
-# EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-# DEFAULT_FROM_EMAIL = "Name <noreply@Domain.com>"
+# Throttles for credential and ingest endpoints (attempts per window).
+LOGIN_RATE_LIMIT = int(os.getenv("LOGIN_RATE_LIMIT", "10"))
+LOGIN_RATE_WINDOW = int(os.getenv("LOGIN_RATE_WINDOW", "300"))
+SITE_GATE_RATE_LIMIT = int(os.getenv("SITE_GATE_RATE_LIMIT", "10"))
+SITE_GATE_RATE_WINDOW = int(os.getenv("SITE_GATE_RATE_WINDOW", "300"))
+METRICS_RATE_LIMIT = int(os.getenv("METRICS_RATE_LIMIT", "60"))
+METRICS_RATE_WINDOW = int(os.getenv("METRICS_RATE_WINDOW", "60"))
+PASSKEY_EMAIL_RATE_LIMIT = int(os.getenv("PASSKEY_EMAIL_RATE_LIMIT", "3"))
+PASSKEY_EMAIL_RATE_WINDOW = int(os.getenv("PASSKEY_EMAIL_RATE_WINDOW", "900"))
 
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ]
-}
-
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-}
+# Real mail is sent as soon as EMAIL_HOST is configured; otherwise messages go
+# to the console so local development never needs an SMTP server.
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "1") != "0"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "0") == "1"
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "10"))
+if "test" in sys.argv:
+    EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+elif EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@localhost")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@localhost")
+FEEDBACK_TO_EMAIL = os.getenv("FEEDBACK_TO_EMAIL", ADMIN_EMAIL)
+ADMINS = [("Site Admin", ADMIN_EMAIL)]
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
 # LOGGING = {
 #     "version": 1,

@@ -26,6 +26,10 @@ MODE_EVALUATE = "evaluate"
 VISIBILITY_VISIBLE = "visible"
 VISIBILITY_HIDDEN = "hidden"
 
+ANSWER_POLICY_SHOW = "show"
+ANSWER_POLICY_OFFER = "offer"
+ANSWER_POLICY_HIDE = "hide"
+
 
 def _as_list(value: Any) -> list[Any]:
 	if value is None:
@@ -78,6 +82,109 @@ def _get_variable(namespace: dict[str, Any], name: str | None) -> Any:
 	if not name:
 		return None
 	return namespace.get(name)
+
+
+def difficulty_from_namespace(namespace: dict[str, Any] | None) -> str:
+	data = namespace.get("data") if isinstance((namespace or {}).get("data"), dict) else {}
+	difficulty = str(data.get("selected_feature") or data.get("difficulty") or "easy").lower().strip()
+	if difficulty not in {"easy", "medium", "hard"}:
+		return "easy"
+	return difficulty
+
+
+def resolve_answer_reveal(difficulty: str, reveal_requested: bool = False) -> dict[str, Any]:
+	"""Difficulty-gated correct-answer visibility (never solution code).
+
+	easy → always show the correct answer
+	medium → offer to show; include only when requested
+	hard → never show the correct answer
+	"""
+	level = (difficulty or "easy").lower().strip()
+	if level == "easy":
+		return {"policy": ANSWER_POLICY_SHOW, "revealed": True, "can_reveal": False}
+	if level == "medium":
+		revealed = bool(reveal_requested)
+		return {"policy": ANSWER_POLICY_OFFER, "revealed": revealed, "can_reveal": not revealed}
+	return {"policy": ANSWER_POLICY_HIDE, "revealed": False, "can_reveal": False}
+
+
+def display_value(value: Any, *, max_rows: int = 5, max_chars: int = 800) -> str:
+	"""Human-readable value preview for feedback (not executable solution code)."""
+	if value is None:
+		return "None"
+	if isinstance(value, pd.DataFrame):
+		if value.empty:
+			return "(empty DataFrame)"
+		preview = value.head(max_rows)
+		try:
+			text = preview.to_string(index=False)
+		except Exception:
+			text = repr(preview)
+		extra = ""
+		if len(value) > max_rows:
+			extra = f"\n… ({len(value)} rows × {len(value.columns)} columns)"
+		text = text + extra
+		return text if len(text) <= max_chars else text[: max_chars - 1] + "…"
+	if isinstance(value, dict):
+		parts = []
+		for key, item in list(value.items())[:12]:
+			parts.append(f"{key}: {display_value(item, max_rows=2, max_chars=100)}")
+		text = "{ " + "; ".join(parts) + ("; …" if len(value) > 12 else "") + " }"
+		return text if len(text) <= max_chars else text[: max_chars - 1] + "…"
+	if isinstance(value, (list, tuple, set)):
+		try:
+			seq = list(value)
+		except Exception:
+			return repr(value)[:max_chars]
+		text = repr(seq[:20]) + ("…" if len(seq) > 20 else "")
+		return text if len(text) <= max_chars else text[: max_chars - 1] + "…"
+	if isinstance(value, (np.bool_, bool)):
+		return str(bool(value))
+	if isinstance(value, (np.integer,)):
+		return str(int(value))
+	if isinstance(value, (np.floating, float)):
+		try:
+			return repr(float(value))
+		except Exception:
+			return str(value)
+	text = repr(value)
+	return text if len(text) <= max_chars else text[: max_chars - 1] + "…"
+
+
+def _json_safe(value: Any) -> Any:
+	"""JSON-friendly form of a value for API payloads."""
+	if value is None or isinstance(value, (bool, int, float, str)):
+		return value
+	if isinstance(value, (np.bool_,)):
+		return bool(value)
+	if isinstance(value, (np.integer,)):
+		return int(value)
+	if isinstance(value, (np.floating,)):
+		try:
+			number = float(value)
+		except Exception:
+			return display_value(value)
+		if math.isnan(number) or math.isinf(number):
+			return str(number)
+		return number
+	if isinstance(value, pd.DataFrame):
+		head = value.head(5)
+		try:
+			records = head.astype(object).where(pd.notnull(head), None).to_dict(orient="records")
+		except Exception:
+			records = []
+		return {
+			"_type": "dataframe",
+			"shape": [int(value.shape[0]), int(value.shape[1])],
+			"columns": [str(c) for c in value.columns],
+			"preview": records,
+			"display": display_value(value),
+		}
+	if isinstance(value, dict):
+		return {str(k): _json_safe(v) for k, v in list(value.items())[:40]}
+	if isinstance(value, (list, tuple)):
+		return [_json_safe(v) for v in list(value)[:40]]
+	return display_value(value)
 
 
 # ---------------------------------------------------------------------------
@@ -269,11 +376,14 @@ def frame_diff(
 			for idx in bad_idx[:preview_rows]:
 				if len(first_rows) >= preview_rows:
 					break
+				actual_val = None if pd.isna(a.iloc[idx]) else a.iloc[idx]
+				expected_val = None if pd.isna(b.iloc[idx]) else b.iloc[idx]
 				first_rows.append(
 					{
 						"row": int(idx),
 						"column": str(col),
-						"actual": None if pd.isna(a.iloc[idx]) else a.iloc[idx],
+						"actual": _json_safe(actual_val),
+						"expected": _json_safe(expected_val),
 						"expected_hidden": True,
 					}
 				)
@@ -391,11 +501,21 @@ def _grade_equals(spec: dict[str, Any], namespace: dict[str, Any], **_kwargs) ->
 		rtol=float(spec.get("rtol", 1e-6)),
 		normalize_strings=bool(spec.get("normalize_strings", False)),
 	)
+	if ok:
+		message = "Value matched."
+	else:
+		message = f"`{name}` is incorrect (got {display_value(actual)})."
 	return _base_result(
 		spec,
 		passed=ok,
-		message="Value matched." if ok else f"`{name}` is not correct yet.",
+		message=message,
 		next_action=spec.get("next_action") or f"Recompute `{name}` from the dataframe — avoid hard-coding.",
+		details={
+			"actual": _json_safe(actual),
+			"expected": _json_safe(expected),
+			"actual_display": display_value(actual),
+			"expected_display": display_value(expected),
+		},
 	)
 
 
@@ -411,28 +531,40 @@ def _grade_frame_equal(spec: dict[str, Any], namespace: dict[str, Any], **_kwarg
 		atol=float(spec.get("atol", 1e-6)),
 		rtol=float(spec.get("rtol", 1e-6)),
 	)
+	details = {k: v for k, v in report.items() if k not in {"equal"}}
+	if not report.get("equal"):
+		details["actual_display"] = display_value(actual)
+		details["expected_display"] = display_value(expected)
+		details["expected"] = _json_safe(expected)
 	return _base_result(
 		spec,
 		passed=bool(report.get("equal")),
 		message=report.get("message") or ("Tables match." if report.get("equal") else "Tables differ."),
 		next_action=spec.get("next_action") or report.get("next_action") or "",
-		details={k: v for k, v in report.items() if k not in {"equal"}},
+		details=details,
 	)
 
 
 def _grade_series_close(spec: dict[str, Any], namespace: dict[str, Any], **_kwargs) -> dict[str, Any]:
 	name = spec.get("variable")
+	actual = _get_variable(namespace, name)
+	expected = _get_expected(spec, namespace)
 	ok = series_close(
-		_get_variable(namespace, name),
-		_get_expected(spec, namespace),
+		actual,
+		expected,
 		atol=float(spec.get("atol", 1e-6)),
 		rtol=float(spec.get("rtol", 1e-6)),
 	)
 	return _base_result(
 		spec,
 		passed=ok,
-		message="Series matched." if ok else f"`{name}` values are not close enough.",
+		message="Series matched." if ok else f"`{name}` is incorrect (got {display_value(actual)}).",
 		next_action=spec.get("next_action") or f"Check calculations that produce `{name}`.",
+		details={
+			"actual_display": display_value(actual),
+			"expected_display": display_value(expected),
+			"expected": _json_safe(expected),
+		},
 	)
 
 
@@ -447,8 +579,13 @@ def _grade_set_equal(spec: dict[str, Any], namespace: dict[str, Any], **_kwargs)
 	return _base_result(
 		spec,
 		passed=ok,
-		message="Sets matched." if ok else f"`{name}` does not contain the expected items.",
+		message="Sets matched." if ok else f"`{name}` is incorrect (got {display_value(actual)}).",
 		next_action=spec.get("next_action") or f"Ensure `{name}` includes exactly the required items.",
+		details={
+			"actual_display": display_value(actual),
+			"expected_display": display_value(expected),
+			"expected": _json_safe(expected),
+		},
 	)
 
 
@@ -738,19 +875,30 @@ def _grade_any_of(spec: dict[str, Any], namespace: dict[str, Any], **kwargs) -> 
 
 
 def _grade_soft_skill(spec: dict[str, Any], namespace: dict[str, Any], **kwargs) -> dict[str, Any]:
+	"""Score reflection like the plotting bonus: optional credit, never a core failure."""
 	response = kwargs.get("soft_skill_response") or namespace.get("soft_skill_response") or ""
 	text = str(response).strip()
 	min_chars = int(spec.get("min_chars", 40))
 	min_words = int(spec.get("min_words", 8))
 	words = [w for w in re.split(r"\s+", text) if w]
+	attempted = bool(text)
 	ok = len(text) >= min_chars and len(words) >= min_words
+	if ok:
+		message = "Reflection complete."
+	elif not attempted:
+		message = "Reflection incomplete: write a short response for credit."
+	else:
+		message = (
+			f"Reflection incomplete: need at least {min_words} words "
+			f"(≥{min_chars} characters); found {len(words)}."
+		)
 	return _base_result(
 		spec,
 		passed=ok,
-		message="Reflection looks complete." if ok else "Reflection is missing or too brief for full completion.",
+		message=message,
 		next_action=spec.get("next_action")
-		or f"Write a short reflection (≥{min_words} words) in the Soft Skill section.",
-		details={"chars": len(text), "words": len(words)},
+		or f"Write a short reflection (≥{min_words} words) in the Reflection section.",
+		details={"chars": len(text), "words": len(words), "attempted": attempted},
 	)
 
 
@@ -889,14 +1037,192 @@ def determine_band(
 	ran: bool,
 	core_passed: bool,
 	has_issues: bool,
-	reflection_ok: bool | None,
-	require_reflection: bool,
+	reflection_ok: bool | None = None,
+	require_reflection: bool = False,
 ) -> str:
+	"""Band from core + approach issues. Reflection / plotting bonus are optional credit."""
+	_ = (reflection_ok, require_reflection)
 	if not ran or not core_passed:
 		return BAND_INCOMPLETE
-	if has_issues or (require_reflection and reflection_ok is False):
+	if has_issues:
 		return BAND_PASS_WITH_ISSUES
 	return BAND_PASS
+
+
+def _values_close_enough(actual: Any, expected: Any) -> bool:
+	"""Loose equality for feedback mismatch detection (mirrors student-facing tolerances)."""
+	if isinstance(expected, pd.DataFrame) or isinstance(actual, pd.DataFrame):
+		return frame_equal(actual, expected)
+	return values_equal(actual, expected, atol=1e-3, rtol=1e-3, normalize_strings=False)
+
+
+def collect_task_answer_items(namespace: dict[str, Any]) -> list[dict[str, Any]]:
+	"""Compare student outputs to `task` expected values for feedback."""
+	task = namespace.get("task")
+	if not isinstance(task, dict):
+		return []
+
+	items: list[dict[str, Any]] = []
+	expected = task.get("expected")
+	expected_df = task.get("expected_df")
+	mode = str(task.get("mode") or "")
+
+	# Scalar summary answers (pandas intro easy).
+	if mode == "summary" or (
+		expected is not None
+		and not isinstance(expected, dict)
+		and (expected_df is None or (isinstance(expected_df, pd.DataFrame) and expected_df.empty))
+	):
+		actual = namespace.get("answer")
+		if not _values_close_enough(actual, expected):
+			items.append(
+				{
+					"label": "answer",
+					"incorrect": display_value(actual),
+					"correct": display_value(expected),
+				}
+			)
+		return items
+
+	# Dict of expected answers / frames (descriptive stats, A/B, transforms).
+	if isinstance(expected, dict):
+		answer_dict = namespace.get("answer") if isinstance(namespace.get("answer"), dict) else None
+		for key, exp_val in expected.items():
+			if isinstance(exp_val, pd.DataFrame):
+				actual = namespace.get(key)
+				if not _values_close_enough(actual, exp_val):
+					diff = frame_diff(actual, exp_val) if isinstance(actual, pd.DataFrame) else {}
+					items.append(
+						{
+							"label": str(key),
+							"incorrect": diff.get("message") or display_value(actual),
+							"correct": display_value(exp_val),
+						}
+					)
+				continue
+			if answer_dict is not None and key in answer_dict:
+				actual = answer_dict.get(key)
+			elif key in namespace:
+				actual = namespace.get(key)
+			else:
+				actual = None if answer_dict is None else answer_dict.get(key)
+			if not _values_close_enough(actual, exp_val):
+				items.append(
+					{
+						"label": str(key),
+						"incorrect": display_value(actual),
+						"correct": display_value(exp_val),
+					}
+				)
+		return items
+
+	# Expected dataframe result (pandas intro subset / messy dataset).
+	if isinstance(expected_df, pd.DataFrame) and len(expected_df) > 0:
+		actual = namespace.get("df")
+		if not _values_close_enough(actual, expected_df):
+			diff = frame_diff(actual, expected_df) if isinstance(actual, pd.DataFrame) else {}
+			items.append(
+				{
+					"label": "df",
+					"incorrect": diff.get("message") or display_value(actual),
+					"correct": display_value(expected_df),
+				}
+			)
+		return items
+
+	return items
+
+
+def _strip_expected_from_details(details: dict[str, Any]) -> dict[str, Any]:
+	cleaned = dict(details)
+	cleaned.pop("expected", None)
+	cleaned.pop("expected_display", None)
+	for row in cleaned.get("preview") or []:
+		if isinstance(row, dict):
+			row.pop("expected", None)
+			row["expected_hidden"] = True
+	return cleaned
+
+
+def _reveal_expected_in_details(details: dict[str, Any]) -> dict[str, Any]:
+	revealed = dict(details)
+	for row in revealed.get("preview") or []:
+		if isinstance(row, dict):
+			row["expected_hidden"] = False
+	return revealed
+
+
+def apply_answer_feedback(
+	checks: list[dict[str, Any]],
+	namespace: dict[str, Any],
+	*,
+	reveal_info: dict[str, Any],
+) -> dict[str, Any]:
+	"""Annotate failed checks with what was wrong and (optionally) the correct answer."""
+	revealed = bool(reveal_info.get("revealed"))
+	policy = reveal_info.get("policy") or ANSWER_POLICY_HIDE
+	task_items = collect_task_answer_items(namespace)
+
+	for check in checks:
+		if check.get("passed") or check.get("details", {}).get("skipped"):
+			continue
+		details = check.get("details") if isinstance(check.get("details"), dict) else {}
+		expected_display = details.get("expected_display")
+		actual_display = details.get("actual_display")
+		if actual_display and "got " not in (check.get("message") or ""):
+			check["message"] = f"{check.get('message') or 'Incorrect.'} (got {actual_display})"
+		if revealed and expected_display:
+			check["correct_answer"] = expected_display
+		elif policy == ANSWER_POLICY_OFFER and expected_display:
+			check["can_reveal_answer"] = True
+		if revealed:
+			check["details"] = _reveal_expected_in_details(details)
+		else:
+			check["details"] = _strip_expected_from_details(details)
+
+	# Assertion / callable failures often lack structured expected fields — use task.
+	if task_items:
+		incorrect_summary = "; ".join(
+			f"`{item['label']}` was {item['incorrect']}" for item in task_items[:6]
+		)
+		correct_summary = "; ".join(
+			f"`{item['label']}` → {item['correct']}" for item in task_items[:6]
+		)
+		for check in checks:
+			if check.get("passed") or check.get("details", {}).get("skipped"):
+				continue
+			if check.get("section") not in {SECTION_CORE, None, ""}:
+				continue
+			if check.get("type") in {"assertion", "callable", "any_of", "accepted_strategies"} or not check.get(
+				"correct_answer"
+			):
+				# Prefer concrete mismatch text over a generic assertion failure.
+				if check.get("type") in {"assertion", "callable"} or "match" in (check.get("message") or "").lower():
+					check["message"] = f"Incorrect: {incorrect_summary}."
+				if revealed:
+					check["correct_answer"] = correct_summary
+					check.pop("can_reveal_answer", None)
+				elif policy == ANSWER_POLICY_OFFER:
+					check["can_reveal_answer"] = True
+
+	can_reveal = any(bool(c.get("can_reveal_answer")) for c in checks)
+	return {
+		"policy": policy,
+		"revealed": revealed,
+		"can_reveal": can_reveal,
+		"items": (
+			[
+				{
+					"label": item["label"],
+					"incorrect": item["incorrect"],
+					**({"correct": item["correct"]} if revealed else {}),
+				}
+				for item in task_items
+			]
+			if task_items
+			else []
+		),
+	}
 
 
 def evaluate_with_graders(
@@ -915,6 +1241,8 @@ def evaluate_with_graders(
 	rules = normalize_evaluation_rules(evaluation_rules)
 	mode = MODE_RUN if mode == MODE_RUN else MODE_EVALUATE
 	checks: list[dict[str, Any]] = []
+	difficulty = difficulty_from_namespace(namespace)
+	reveal_info = resolve_answer_reveal(difficulty, reveal_requested=reveal_expected)
 
 	for spec in rules.get("graders") or []:
 		visibility = spec.get("visibility") or VISIBILITY_VISIBLE
@@ -929,23 +1257,15 @@ def evaluate_with_graders(
 			cell_sources=cell_sources or [],
 			soft_skill_response=soft_skill_response,
 		)
-		# Never leak expected values unless explicitly revealing.
-		if not reveal_expected and isinstance(result.get("details"), dict):
-			result["details"].pop("expected", None)
-			for row in result["details"].get("preview") or []:
-				if isinstance(row, dict):
-					row.pop("expected", None)
-					row["expected_hidden"] = True
 		checks.append(result)
 
-	# Soft-skill dimension (full completion) — only when the exercise has a prompt.
+	# Soft-skill reflection — optional credit (same spirit as plotting bonus).
 	soft_cfg = rules.get("soft_skill") or {}
 	prompt = soft_skill_prompt or ""
 	if not prompt and isinstance(namespace.get("data"), dict):
 		prompt = str(namespace["data"].get("soft_skill_prompt") or "")
-	require_reflection = bool(soft_cfg.get("required_for_full_completion")) and bool(prompt.strip())
 	reflection_ok = None
-	if mode == MODE_EVALUATE and require_reflection:
+	if mode == MODE_EVALUATE and prompt.strip():
 		soft_result = run_grader(
 			{
 				"id": "soft_skill",
@@ -996,26 +1316,43 @@ def evaluate_with_graders(
 			}
 		)
 
+	answer_feedback = apply_answer_feedback(checks, namespace, reveal_info=reveal_info)
+
 	rubric = build_rubric(checks)
 	core = rubric[SECTION_CORE]
 	core_passed = core["total"] == 0 or core["passed"] == core["total"]
-	has_issues = any(c.get("issues") for c in checks) or (second_seed_ok is False)
+	# Optional sections (reflection / plotting bonus) never create approach "issues".
+	has_issues = any(
+		c.get("issues")
+		for c in checks
+		if c.get("section") not in {SECTION_REFLECTION, SECTION_BONUS}
+		and c.get("type") not in {"soft_skill", "plotting_bonus"}
+	) or (second_seed_ok is False)
 	bonus_passed = bool(plotting_bonus and plotting_bonus.get("passed"))
 	band = determine_band(
 		ran=True,
 		core_passed=core_passed,
 		has_issues=has_issues,
 		reflection_ok=reflection_ok,
-		require_reflection=require_reflection,
+		require_reflection=False,
 	)
 
-	failed = [c for c in checks if not c.get("passed") and not c.get("details", {}).get("skipped")]
+	failed = [
+		c
+		for c in checks
+		if not c.get("passed")
+		and not c.get("details", {}).get("skipped")
+		and c.get("section") not in {SECTION_REFLECTION, SECTION_BONUS}
+		and c.get("type") not in {"soft_skill", "plotting_bonus"}
+	]
 	if mode == MODE_RUN:
 		if not failed:
 			summary = "Looks promising — run Evaluate Exercise when you want credit."
 		else:
 			first = failed[0]
-			summary = first.get("next_action") or first.get("message") or "Keep going."
+			summary = first.get("message") or first.get("next_action") or "Keep going."
+		soft_messages = [c.get("message") for c in failed if c.get("message")]
+		correct_answers = [c.get("correct_answer") for c in failed if c.get("correct_answer")]
 		return {
 			"mode": mode,
 			"passed": False,
@@ -1026,23 +1363,26 @@ def evaluate_with_graders(
 			"rubric": rubric,
 			"soft_feedback": {
 				"status": "close" if not failed else "needs_work",
-				"messages": [c.get("message") for c in checks],
+				"messages": soft_messages or [c.get("message") for c in checks],
 				"next_actions": [c.get("next_action") for c in failed if c.get("next_action")],
+				"correct_answers": correct_answers,
+				"can_reveal_answer": bool(answer_feedback.get("can_reveal")),
 			},
 			"plotting_bonus": plotting_bonus,
-			"reveal_expected": False,
+			"reveal_expected": bool(answer_feedback.get("revealed")),
+			"answer_feedback": answer_feedback,
 		}
 
-	if core_passed and not has_issues and (not require_reflection or reflection_ok):
+	if core_passed and not has_issues:
 		summary = rules.get("success_message") or "Exercise checks complete."
 	elif core_passed and has_issues:
-		summary = "Core checks passed with issues — see Approach / Reflection."
-	elif core_passed and require_reflection and reflection_ok is False:
-		summary = "Core checks passed. Add a short soft-skill reflection for full completion."
+		summary = "Core checks passed with issues — see Approach."
 	else:
 		first = next((c for c in checks if c.get("section") == SECTION_CORE and not c.get("passed")), None)
+		# Prefer describing what was incorrect over a generic next-action prompt.
 		summary = (
-			(first.get("next_action") if first else None)
+			(first.get("message") if first else None)
+			or (first.get("next_action") if first else None)
 			or rules.get("failure_message")
 			or "Review the notebook and try again."
 		)
@@ -1052,6 +1392,8 @@ def evaluate_with_graders(
 		if check.get("visibility") == VISIBILITY_HIDDEN and not check.get("passed"):
 			check["message"] = "A hidden integrity check did not pass yet."
 			check["next_action"] = check.get("next_action") or "Generalize your solution — avoid hard-coding."
+			check.pop("correct_answer", None)
+			check.pop("can_reveal_answer", None)
 
 	return {
 		"mode": mode,
@@ -1073,7 +1415,8 @@ def evaluate_with_graders(
 			None,
 		),
 		"second_seed_ok": second_seed_ok,
-		"reveal_expected": bool(reveal_expected),
+		"reveal_expected": bool(answer_feedback.get("revealed")),
+		"answer_feedback": answer_feedback,
 		"success_message": rules.get("success_message"),
 		"failure_message": rules.get("failure_message"),
 	}

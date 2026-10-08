@@ -15,7 +15,7 @@ class TrackAdmin(admin.ModelAdmin):
 class ExerciseAdmin(admin.ModelAdmin):
 	list_display = ("title", "track", "order", "published", "is_placeholder", "updated_at")
 	list_filter = ("published", "is_placeholder", "track")
-	search_fields = ("title", "slug", "intro_markdown", "starter_code", "soft_skill_prompt")
+	search_fields = ("title", "slug", "intro_markdown", "soft_skill_prompt")
 	prepopulated_fields = {"slug": ("title",)}
 	fields = (
 		"track",
@@ -23,7 +23,6 @@ class ExerciseAdmin(admin.ModelAdmin):
 		"slug",
 		"intro_markdown",
 		"soft_skill_prompt",
-		"starter_code",
 		"allowed_imports",
 		"data_definition",
 		"evaluation_rules",

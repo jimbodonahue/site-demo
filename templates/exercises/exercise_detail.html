@@ -148,8 +148,10 @@
     <div class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100" role="status">
         <span class="font-semibold">Not signed in.</span>
         You can
-        <a href="{% url 'login' %}" class="font-semibold underline underline-offset-2 hover:text-amber-700 dark:hover:text-white">sign in</a>
-        to keep progress across sessions.
+        <a href="{% url 'membership' %}#enter-passkey" class="font-semibold underline underline-offset-2 hover:text-amber-700 dark:hover:text-white">enter your passkey</a>
+        or
+        <a href="{% url 'membership' %}#create-account" class="font-semibold underline underline-offset-2 hover:text-amber-700 dark:hover:text-white">create an account</a>
+        to keep progress tied to your account.
     </div>
     {% endif %}
     
@@ -158,19 +160,30 @@
         <div class="max-w-3xl space-y-3">
             <p class="text-sm font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Programming Exercise</p>
             <h1 class="text-3xl font-bold text-slate-900 dark:text-white">{{ exercise.title }}</h1>
-            <div class="prose dark:prose-invert max-w-none text-slate-600 dark:text-slate-300">
-                {{ exercise.render_intro_html|safe }}
+            <div class="md-content prose prose-slate dark:prose-invert max-w-none">
+                {{ exercise.render_intro_html }}
+                <a href="{% url 'forum:exercise_topic_create' exercise_slug=exercise.slug %}" class="inline-block mt-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">Discussion Thread</a>
             </div>
         </div>
-        <div class="flex flex-wrap gap-3">
-            <button id="repeat-saved-button" class="rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 shadow-sm flex items-center gap-2">
-                <span>↺</span><span>Repeat Saved Attempt</span>
-            </button>
-            <button id="reset-data-button" class="rounded-full bg-slate-800 dark:bg-slate-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:hover:bg-slate-600 shadow-sm">Reset Data</button>
+        <div class="flex flex-wrap items-start gap-3">
+            <div class="relative" id="repeat-attempt-wrap">
+                <button type="button" id="repeat-saved-button" class="rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 shadow-sm flex items-center gap-2">
+                    <span>↺</span><span>Repeat Previous Attempt</span>
+                </button>
+                <div id="repeat-attempt-menu" class="hidden absolute right-0 z-20 mt-2 w-72 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black/5">
+                    <p class="px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700">Previous attempts</p>
+                    <ul id="repeat-attempt-list" class="py-1"></ul>
+                    <p id="repeat-attempt-empty" class="hidden px-4 py-3 text-sm text-slate-500 dark:text-slate-400">No previous attempts yet. Run or start a new exercise to begin tracking tries.</p>
+                </div>
+            </div>
+            <a href="{% url 'feedback' %}?from={{ request.get_full_path|urlencode }}&amp;type=bug" id="report-bug-button" class="rounded-full border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 px-5 py-2.5 text-sm font-semibold text-rose-700 dark:text-rose-300 transition hover:bg-rose-100 dark:hover:bg-rose-900/50 shadow-sm flex items-center gap-2">
+                <span>🐞</span><span>Report Bug</span>
+            </a>
+            <button id="reset-data-button" class="rounded-full bg-slate-800 dark:bg-slate-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:hover:bg-slate-600 shadow-sm" title="Start a fresh attempt with a new dataset at the current difficulty">New Exercise</button>
         </div>
     </div>
 
-    <!-- 2-Column Main Layout: Left = 1/3 width (Data Features + Exercise Graphic), Right = 2/3 width (Notebook + Evaluation) -->
+    <!-- 2-Column Main Layout: Left = 1/3 width (Data Features + visual preview), Right = 2/3 width (Notebook + Evaluation) -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <!-- LEFT COLUMN: 1/3 width (lg:col-span-1) -->
@@ -195,11 +208,10 @@
                 </div>
             </aside>
 
-            <!-- 2. Exercise Graphic Card (Moved under Data Features in 1/3 column) -->
+            <!-- 2. Visual reference / live preview (under Data Features) -->
             <aside class="space-y-4 rounded-3xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Exercise Graphic</p>
-                    <h2 class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">Visual Reference & Data Preview</h2>
+                    <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Visual Reference & Data Preview</h2>
                 </div>
                 <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 text-slate-700 dark:text-slate-300">
                     {{ exercise.render_graphic_html|safe }}
@@ -225,7 +237,7 @@
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div class="min-w-0 flex-1">
                             <p class="text-xs font-semibold uppercase tracking-[0.15em] text-sky-700 dark:text-sky-300">Task</p>
-                            <p id="task-prompt-text" class="mt-2 text-sm leading-relaxed text-slate-800 dark:text-slate-100 whitespace-pre-wrap">{{ task_prompt }}</p>
+                            <div id="task-prompt-text" class="md-content prose prose-slate dark:prose-invert max-w-none mt-2 text-sm leading-relaxed">{% if task_prompt_html %}{{ task_prompt_html }}{% endif %}</div>
                         </div>
                         <button type="button" id="spotter-button" class="shrink-0 rounded-full border border-sky-300 dark:border-sky-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition" title="Show a few general tool reminders for this difficulty">
                             Spotter
@@ -241,16 +253,10 @@
 
                 <!-- Classic Jupyter Notebook Toolbar -->
                 <div class="flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-2 shadow-inner">
-                    <button type="button" id="tb-save" class="j-tb-btn" title="Save Progress">
-                        <span>💾</span><span class="hidden sm:inline">Save</span>
-                    </button>
                     <button type="button" id="tb-add" class="j-tb-btn" title="Insert Cell Below">
                         <span>➕</span><span class="hidden sm:inline">Cell</span>
                     </button>
                     <span class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5"></span>
-                    <button type="button" id="tb-cut" class="j-tb-btn" title="Cut Selected Cell">
-                        <span>✂️</span>
-                    </button>
                     <button type="button" id="tb-copy" class="j-tb-btn" title="Copy Selected Cell">
                         <span>📋</span>
                     </button>
@@ -260,15 +266,15 @@
                     <button type="button" id="tb-move-down" class="j-tb-btn" title="Move Selected Cell Down">
                         <span>▼</span>
                     </button>
+                    <button type="button" id="tb-toggle-comments" class="j-tb-btn" title="Toggle Comments (Ctrl+D)">
+                        <span class="font-mono font-bold">#</span><span class="hidden sm:inline">Comment</span>
+                    </button>
                     <span class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5"></span>
-                    <button type="button" id="tb-run" class="j-tb-btn bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:hover:bg-emerald-900/70 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 font-semibold" title="Run Cells">
+                    <button type="button" id="tb-run" class="j-tb-btn bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:hover:bg-emerald-900/70 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 font-semibold" title="Run All Cells">
                         <span>▶</span><span>Run</span>
                     </button>
                     <button type="button" id="tb-interrupt" class="j-tb-btn" title="Interrupt Kernel">
                         <span>⬛</span>
-                    </button>
-                    <button type="button" id="tb-restart" class="j-tb-btn" title="Restart Kernel">
-                        <span>↻</span><span class="hidden sm:inline">Restart</span>
                     </button>
                     <span class="h-4 w-px bg-slate-300 dark:bg-slate-700 mx-0.5"></span>
                     <select id="tb-cell-type" class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs px-2 py-1 shadow-sm font-medium outline-none">
@@ -291,9 +297,19 @@
                         <button id="evaluate-button" type="button" class="rounded-xl bg-sky-600 hover:bg-sky-500 text-white px-5 py-2.5 text-sm font-bold shadow-md transition-all flex items-center gap-2">
                             <span>🔍</span><span>Evaluate Exercise</span>
                         </button>
-                        <button id="repeat-saved-button-eval" type="button" class="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 text-sm font-semibold shadow-md transition-all flex items-center gap-2">
-                            <span>↺</span><span>Repeat Saved Attempt</span>
-                        </button>
+                        <div class="relative" id="repeat-attempt-wrap-eval">
+                            <button id="repeat-saved-button-eval" type="button" class="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 text-sm font-semibold shadow-md transition-all flex items-center gap-2">
+                                <span>↺</span><span>Repeat Previous Attempt</span>
+                            </button>
+                            <div id="repeat-attempt-menu-eval" class="hidden absolute right-0 z-20 mt-2 w-72 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black/5">
+                                <p class="px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700">Previous attempts</p>
+                                <ul id="repeat-attempt-list-eval" class="py-1"></ul>
+                                <p id="repeat-attempt-empty-eval" class="hidden px-4 py-3 text-sm text-slate-500 dark:text-slate-400">No previous attempts yet. Run or start a new exercise to begin tracking tries.</p>
+                            </div>
+                        </div>
+                        <a href="{% url 'feedback' %}?from={{ request.get_full_path|urlencode }}&amp;type=bug" id="report-bug-button-eval" class="rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 px-4 py-2.5 text-sm font-semibold text-rose-700 dark:text-rose-300 shadow-md transition-all flex items-center gap-2 hover:bg-rose-100 dark:hover:bg-rose-900/50">
+                            <span>🐞</span><span>Report Bug</span>
+                        </a>
                     </div>
                 </div>
 
@@ -306,13 +322,6 @@
                             <p id="evaluation-explanation-text" class="text-sm leading-relaxed"></p>
                         </div>
                     </div>
-                </div>
-
-                <!-- Soft feedback after Run -->
-                <div id="soft-feedback-panel" class="hidden rounded-2xl border border-sky-200 dark:border-sky-900/50 bg-sky-50/70 dark:bg-sky-950/30 p-4 space-y-2">
-                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-300">Live feedback</p>
-                    <p id="soft-feedback-text" class="text-sm text-sky-950 dark:text-sky-100"></p>
-                    <ul id="soft-feedback-actions" class="space-y-1 text-sm text-sky-900 dark:text-sky-200 list-disc list-inside"></ul>
                 </div>
 
                 <!-- Rubric scorecard -->
@@ -338,14 +347,17 @@
                 <!-- Progress Summary -->
                 <div class="rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4">
                     <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Progress Status</p>
-                    <div id="progress-summary" class="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">Run for live feedback, then Evaluate Exercise for credit.</div>
+                    <div id="progress-summary" class="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">Run the notebook, then click Evaluate Exercise for credit.</div>
                 </div>
 
                 <!-- Individual Checks List -->
                 <div id="evaluation-checks-wrapper" class="hidden rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 space-y-2">
                     <div class="flex items-center justify-between gap-3 mb-2">
                         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Rubric details</p>
-                        <button type="button" id="reveal-hint-button" class="hidden text-xs font-semibold text-sky-700 dark:text-sky-300 hover:underline">Show hint</button>
+                        <div class="flex items-center gap-3">
+                            <button type="button" id="reveal-answer-button" class="hidden text-xs font-semibold text-sky-700 dark:text-sky-300 hover:underline">Show correct answer</button>
+                            <button type="button" id="reveal-hint-button" class="hidden text-xs font-semibold text-sky-700 dark:text-sky-300 hover:underline">Show hint</button>
+                        </div>
                     </div>
                     <ul id="evaluation-checks" class="space-y-2 text-sm"></ul>
                 </div>
@@ -358,13 +370,15 @@
         </div>
     </div>
 
-    {% if exercise.soft_skill_prompt %}
+    {% if exercise.display_soft_skill_prompt %}
     <section class="rounded-3xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors space-y-4">
         <div class="border-b border-slate-200 dark:border-slate-700 pb-4">
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Soft Skill</p>
             <h2 class="text-xl font-bold text-slate-900 dark:text-white">Reflection</h2>
         </div>
-        <p class="soft-skill-prompt text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-line">{{ exercise.soft_skill_prompt }}</p>
+        <div class="soft-skill-prompt md-content prose prose-slate dark:prose-invert max-w-none text-sm leading-relaxed">
+            {{ exercise.render_soft_skill_html }}
+        </div>
         <form method="post" action="{{ soft_skill_url }}" class="space-y-4" id="soft-skill-form">
             {% csrf_token %}
             <label for="soft_skill_response" class="sr-only">Your soft skill response</label>
@@ -377,6 +391,16 @@
                 class="w-full rounded-2xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-4 text-sm text-slate-900 dark:text-slate-100 focus:border-sky-500 focus:outline-none"
             >{{ attempt.soft_skill_response }}</textarea>
             <div class="flex flex-wrap items-center justify-end gap-3">
+                <label for="post_to_forum" class="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        id="post_to_forum"
+                        name="post_to_forum"
+                        value="1"
+                        class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                    >
+                    <span>Post to forum</span>
+                </label>
                 <button type="submit" class="rounded-xl bg-sky-600 hover:bg-sky-500 text-white px-5 py-2.5 text-sm font-bold shadow-md transition-all">
                     Submit
                 </button>
@@ -385,16 +409,44 @@
     </section>
     {% endif %}
 
-    {% if exercise.track %}
-    <div class="rounded-3xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors">
-        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Track</p>
-        <div class="mt-2 text-sm text-slate-600 dark:text-slate-300">
-            <p>
-                <a href="{% url 'exercises:track_detail' exercise.track.slug %}" class="font-medium text-primary-600 hover:text-primary-700">
-                    {{ exercise.track.title }}
-                </a>
-            </p>
+    {% if exercise.track or previous_exercise or next_exercise %}
+    <div class="rounded-3xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 transition-colors space-y-4">
+        {% if exercise.track %}
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Track</p>
+            <div class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                <p>
+                    <a href="{% url 'exercises:track_detail' exercise.track.slug %}" class="font-medium text-primary-600 hover:text-primary-700">
+                        {{ exercise.track.title }}
+                    </a>
+                </p>
+            </div>
         </div>
+        {% endif %}
+        {% if previous_exercise or next_exercise %}
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between{% if exercise.track %} border-t border-slate-100 dark:border-slate-700 pt-4{% endif %}">
+            {% if previous_exercise %}
+            <a href="{% url 'exercises:detail' previous_exercise.slug %}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition">
+                <span aria-hidden="true">&larr;</span>
+                <span class="text-left">
+                    <span class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Previous Topic</span>
+                    <span class="block">{{ previous_exercise.title }}</span>
+                </span>
+            </a>
+            {% else %}
+            <span class="hidden sm:block"></span>
+            {% endif %}
+            {% if next_exercise %}
+            <a href="{% url 'exercises:detail' next_exercise.slug %}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition sm:ml-auto sm:text-right">
+                <span class="text-right">
+                    <span class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Next Topic</span>
+                    <span class="block">{{ next_exercise.title }}</span>
+                </span>
+                <span aria-hidden="true">&rarr;</span>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -406,7 +458,11 @@
     {{ evaluation_rules|json_script:"evaluation-rules-json" }}
     {{ data_definition|json_script:"data-definition-json" }}
     {{ attempt.progress_state|json_script:"progress-state-json" }}
+    {{ previous_attempts|json_script:"previous-attempts-json" }}
     {{ task_prompt|default_if_none:""|json_script:"task-prompt-data" }}
+    {{ task_prompt_html|default_if_none:""|json_script:"task-prompt-html-data" }}
+    {{ plotting_bonus_prompt|default_if_none:""|json_script:"plotting-bonus-prompt-data" }}
+    {{ plotting_bonus_prompt_html|default_if_none:""|json_script:"plotting-bonus-prompt-html-data" }}
     {{ spotter_tips|json_script:"spotter-tips-data" }}
 </section>
 
@@ -434,10 +490,19 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         spotterTipsByLevel = {};
     }
     let currentTaskPrompt = '';
+    let currentTaskPromptHtml = '';
+    let currentPlottingBonusPrompt = '';
+    let currentPlottingBonusPromptHtml = '';
     try {
         currentTaskPrompt = JSON.parse(document.getElementById('task-prompt-data').textContent || '""') || '';
+        currentTaskPromptHtml = JSON.parse(document.getElementById('task-prompt-html-data').textContent || '""') || '';
+        currentPlottingBonusPrompt = JSON.parse(document.getElementById('plotting-bonus-prompt-data').textContent || '""') || '';
+        currentPlottingBonusPromptHtml = JSON.parse(document.getElementById('plotting-bonus-prompt-html-data').textContent || '""') || '';
     } catch (error) {
-        currentTaskPrompt = taskPromptText ? (taskPromptText.textContent || '') : '';
+        currentTaskPrompt = '';
+        currentTaskPromptHtml = taskPromptText ? (taskPromptText.innerHTML || '') : '';
+        currentPlottingBonusPrompt = '';
+        currentPlottingBonusPromptHtml = '';
     }
     const notebookContainer = document.getElementById('notebook-cells');
     const featureChoiceList = document.getElementById('feature-choice-list');
@@ -453,18 +518,30 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
     const evaluationExplanationText = document.getElementById('evaluation-explanation-text');
     const plottingBonusPanel = document.getElementById('plotting-bonus-panel');
     const plottingBonusText = document.getElementById('plotting-bonus-text');
-    const softFeedbackPanel = document.getElementById('soft-feedback-panel');
-    const softFeedbackText = document.getElementById('soft-feedback-text');
-    const softFeedbackActions = document.getElementById('soft-feedback-actions');
     const rubricScorecard = document.getElementById('rubric-scorecard');
     const revealHintButton = document.getElementById('reveal-hint-button');
+    const revealAnswerButton = document.getElementById('reveal-answer-button');
     let lastEvaluation = null;
     let hintsRevealed = false;
+    let answersRevealed = false;
     const rightPanelLivePlot = document.getElementById('right-panel-live-plot');
     const resetDataButton = document.getElementById('reset-data-button');
     const repeatSavedButton = document.getElementById('repeat-saved-button');
     const repeatSavedButtonEval = document.getElementById('repeat-saved-button-eval');
+    const repeatAttemptMenu = document.getElementById('repeat-attempt-menu');
+    const repeatAttemptMenuEval = document.getElementById('repeat-attempt-menu-eval');
+    const repeatAttemptList = document.getElementById('repeat-attempt-list');
+    const repeatAttemptListEval = document.getElementById('repeat-attempt-list-eval');
+    const repeatAttemptEmpty = document.getElementById('repeat-attempt-empty');
+    const repeatAttemptEmptyEval = document.getElementById('repeat-attempt-empty-eval');
     const evaluateButton = document.getElementById('evaluate-button');
+
+    let previousAttempts = [];
+    try {
+        previousAttempts = JSON.parse(document.getElementById('previous-attempts-json').textContent || '[]') || [];
+    } catch (error) {
+        previousAttempts = [];
+    }
 
     function initExerciseMetrics() {
         if (!window.AnonymousMetrics) {
@@ -483,17 +560,15 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
     }
 
     // Jupyter Toolbar elements
-    const tbSave = document.getElementById('tb-save');
     const tbAdd = document.getElementById('tb-add');
-    const tbCut = document.getElementById('tb-cut');
     const tbCopy = document.getElementById('tb-copy');
     const tbMoveUp = document.getElementById('tb-move-up');
     const tbMoveDown = document.getElementById('tb-move-down');
+    const tbToggleComments = document.getElementById('tb-toggle-comments');
     const tbRun = document.getElementById('tb-run');
     const tbInterrupt = document.getElementById('tb-interrupt');
-    const tbRestart = document.getElementById('tb-restart');
 
-    let activeCellIndex = 0;
+    let activeCellIndex = 1;
     let clipboardCellSource = null;
     let cellExecutionCounts = {};
     let globalExecutionCounter = 0;
@@ -505,53 +580,198 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         return;
     }
 
-    async function repeatSavedAttempt() {
+    function formatAttemptTimestamp(isoValue) {
+        if (!isoValue) return 'Unknown date/time';
+        const parsed = new Date(isoValue);
+        if (Number.isNaN(parsed.getTime())) return String(isoValue);
+        const date = parsed.toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+        });
+        const time = parsed.toLocaleTimeString(undefined, {
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+        return `${date} · ${time}`;
+    }
+
+    function setPreviousAttempts(attempts) {
+        previousAttempts = Array.isArray(attempts) ? attempts : [];
+        renderAttemptMenus();
+    }
+
+    function renderAttemptMenus() {
+        const targets = [
+            { list: repeatAttemptList, empty: repeatAttemptEmpty },
+            { list: repeatAttemptListEval, empty: repeatAttemptEmptyEval },
+        ];
+        targets.forEach(({ list, empty }) => {
+            if (!list) return;
+            list.innerHTML = '';
+            const hasAttempts = previousAttempts.length > 0;
+            if (empty) empty.classList.toggle('hidden', hasAttempts);
+            if (!hasAttempts) return;
+            [...previousAttempts].reverse().forEach((attempt) => {
+                const li = document.createElement('li');
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'w-full px-4 py-2.5 text-left text-sm text-slate-800 dark:text-slate-100 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition';
+                button.dataset.tryNumber = String(attempt.try_number);
+                button.innerHTML = `<span class="font-semibold">Try ${attempt.try_number}</span>`
+                    + `<span class="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">${formatAttemptTimestamp(attempt.created_at)}</span>`;
+                button.addEventListener('click', () => restorePreviousAttempt(attempt.try_number));
+                li.appendChild(button);
+                list.appendChild(li);
+            });
+        });
+    }
+
+    function closeAttemptMenus() {
+        if (repeatAttemptMenu) repeatAttemptMenu.classList.add('hidden');
+        if (repeatAttemptMenuEval) repeatAttemptMenuEval.classList.add('hidden');
+    }
+
+    function toggleAttemptMenu(menu) {
+        if (!menu) return;
+        const willOpen = menu.classList.contains('hidden');
+        closeAttemptMenus();
+        if (willOpen) {
+            renderAttemptMenus();
+            menu.classList.remove('hidden');
+        }
+    }
+
+    async function restorePreviousAttempt(tryNumber) {
+        closeAttemptMenus();
         const response = await fetch(repeatUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
             },
-            body: JSON.stringify({}),
+            body: JSON.stringify({ try_number: tryNumber, restore: true }),
         });
 
         const payload = await response.json();
+        if (payload.previous_attempts || payload.attempts) {
+            setPreviousAttempts(payload.previous_attempts || payload.attempts);
+        }
         if (!response.ok || !payload.success) {
-            progressSummary.textContent = payload.error || 'No saved attempt was found for this user.';
+            progressSummary.textContent = payload.error || 'No previous attempt was found for this user.';
             return;
         }
 
-        cells = payload.cells || starterCells.map((cell) => ({source: cell.source || ''}));
+        cells = normalizeCells(payload.cells || starterCells);
         currentDataState = payload.data_state || structuredClone(initialData);
         previousResults = [];
         cellExecutionCounts = {};
         globalExecutionCounter = 0;
+        applyPlottingBonusPrompt(payload.plotting_bonus_prompt, payload.plotting_bonus_prompt_html);
         renderTopicChoices();
         renderFeatureChoices();
-        renderTaskPrompt(payload.task_prompt);
+        renderTaskPrompt(payload.task_prompt, payload.task_prompt_html);
         renderNotebook();
         renderProgress(payload.progress, payload.evaluation, false);
         renderOutputs([]);
     }
 
-    if (repeatSavedButton) repeatSavedButton.addEventListener('click', repeatSavedAttempt);
-    if (repeatSavedButtonEval) repeatSavedButtonEval.addEventListener('click', repeatSavedAttempt);
+    async function openPreviousAttemptPicker(menu) {
+        try {
+            const response = await fetch(repeatUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
+                },
+                body: JSON.stringify({}),
+            });
+            const payload = await response.json();
+            if (response.ok && payload.success) {
+                setPreviousAttempts(payload.previous_attempts || payload.attempts || []);
+            }
+        } catch (error) {
+            // Fall back to the attempts already rendered from page load.
+        }
+        toggleAttemptMenu(menu);
+    }
+
+    if (repeatSavedButton) {
+        repeatSavedButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openPreviousAttemptPicker(repeatAttemptMenu);
+        });
+    }
+    if (repeatSavedButtonEval) {
+        repeatSavedButtonEval.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openPreviousAttemptPicker(repeatAttemptMenuEval);
+        });
+    }
+    document.addEventListener('click', (event) => {
+        const inHeader = event.target.closest('#repeat-attempt-wrap');
+        const inEval = event.target.closest('#repeat-attempt-wrap-eval');
+        if (!inHeader && !inEval) closeAttemptMenus();
+    });
+    renderAttemptMenus();
     
-    let cells = starterCells.map((cell) => ({source: cell.source || ''}));
+    function normalizeCell(cell) {
+        const source = cell && cell.source != null ? String(cell.source) : '';
+        const cellType = (cell && cell.cell_type) || 'code';
+        const role = (cell && cell.role) || (cellType === 'markdown' ? 'markdown' : 'work');
+        const locked = Boolean(cell && cell.locked) || role === 'imports' || role === 'plotting_bonus_prompt';
+        return {
+            source,
+            cell_type: cellType,
+            locked,
+            role,
+            html: cell && cell.html ? String(cell.html) : '',
+        };
+    }
+
+    function normalizeCells(rawCells) {
+        // Imports run under the hood; drop any legacy locked imports cells from saved state.
+        return (Array.isArray(rawCells) ? rawCells : [])
+            .map(normalizeCell)
+            .filter((cell) => cell.role !== 'imports');
+    }
+
+    function applyPlottingBonusPrompt(prompt, promptHtml) {
+        currentPlottingBonusPrompt = (prompt || '').trim();
+        currentPlottingBonusPromptHtml = (promptHtml || '').trim();
+        cells = cells.map((cell) => {
+            if (cell.role !== 'plotting_bonus_prompt') return cell;
+            return {
+                ...cell,
+                source: currentPlottingBonusPrompt || cell.source,
+                html: currentPlottingBonusPromptHtml || cell.html,
+                cell_type: 'markdown',
+                locked: true,
+            };
+        });
+    }
+
+    let cells = normalizeCells(starterCells);
+    applyPlottingBonusPrompt(currentPlottingBonusPrompt, currentPlottingBonusPromptHtml);
     let currentDataState = JSON.parse(JSON.stringify(initialData));
     let previousResults = [];
     let notebookElements = [];
 
-    function renderTaskPrompt(prompt) {
+    function renderTaskPrompt(prompt, promptHtml) {
         currentTaskPrompt = (prompt || '').trim();
+        currentTaskPromptHtml = (promptHtml || '').trim();
         if (!taskPromptBanner || !taskPromptText) return;
-        if (!currentTaskPrompt) {
+        if (!currentTaskPrompt && !currentTaskPromptHtml) {
             taskPromptBanner.classList.add('hidden');
-            taskPromptText.textContent = '';
+            taskPromptText.innerHTML = '';
             if (spotterPanel) spotterPanel.classList.add('hidden');
             return;
         }
-        taskPromptText.textContent = currentTaskPrompt;
+        if (currentTaskPromptHtml) {
+            taskPromptText.innerHTML = currentTaskPromptHtml;
+        } else {
+            taskPromptText.textContent = currentTaskPrompt;
+        }
         taskPromptBanner.classList.remove('hidden');
         renderSpotterTips();
     }
@@ -611,18 +831,25 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         if (!response.ok || !payload.success) {
             throw new Error(payload.error || 'Could not refresh the scenario.');
         }
-        cells = (payload.cells || starterCells).map((cell) => ({source: cell.source || ''}));
+        cells = normalizeCells(payload.cells || starterCells);
         previousResults = [];
         cellExecutionCounts = {};
         globalExecutionCounter = 0;
+        hintsRevealed = false;
+        answersRevealed = false;
+        lastEvaluation = null;
         currentDataState = payload.data_state || currentDataState;
         clearCachedScenarioArtifacts();
+        if (payload.previous_attempts) {
+            setPreviousAttempts(payload.previous_attempts);
+        }
         if (evaluationExplanationContainer) evaluationExplanationContainer.classList.add('hidden');
         if (evaluationChecksWrapper) evaluationChecksWrapper.classList.add('hidden');
+        applyPlottingBonusPrompt(payload.plotting_bonus_prompt, payload.plotting_bonus_prompt_html);
         renderFeatureChoices();
         renderTopicChoices();
         renderSpotterTips();
-        renderTaskPrompt(payload.task_prompt);
+        renderTaskPrompt(payload.task_prompt, payload.task_prompt_html);
         renderNotebook();
         renderOutputs([]);
         renderProgress(
@@ -723,34 +950,60 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         });
     }
 
+    function firstWorkIndex() {
+        const idx = cells.findIndex((cell) => !cell.locked && cell.cell_type !== 'markdown' && cell.role !== 'plotting_bonus');
+        return idx >= 0 ? idx : 1;
+    }
+
+    function plottingSectionIndex() {
+        const idx = cells.findIndex((cell) => cell.role === 'plotting_bonus_prompt' || cell.role === 'plotting_bonus');
+        return idx >= 0 ? idx : cells.length;
+    }
+
+    function canEditCell(index) {
+        const cell = cells[index];
+        return Boolean(cell) && !cell.locked && cell.cell_type !== 'markdown';
+    }
+
     function renderNotebook() {
         notebookContainer.innerHTML = '';
         notebookElements = [];
 
         cells.forEach((cell, index) => {
             const wrapper = document.createElement('article');
+            const isMarkdown = cell.cell_type === 'markdown';
+            const isLocked = Boolean(cell.locked);
             wrapper.className = `overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 transition-colors ${index === activeCellIndex ? 'ring-2 ring-sky-500/40 dark:ring-sky-500/60' : ''}`;
             wrapper.dataset.cellIndex = index;
 
             const execNum = cellExecutionCounts[index] ? cellExecutionCounts[index] : ' ';
+            const label = cell.role === 'imports'
+                ? 'Imports (locked)'
+                : cell.role === 'plotting_bonus_prompt'
+                    ? 'Plotting bonus'
+                    : cell.role === 'plotting_bonus'
+                        ? 'Plotting bonus code'
+                        : `Cell ${index + 1}`;
 
-            wrapper.innerHTML = `
-                <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-mono font-bold text-blue-600 dark:text-sky-400 select-none">In [${execNum}]:</span>
-                        <span class="text-xs text-slate-400 dark:text-slate-500 font-mono">Cell ${index + 1}</span>
-                    </div>
+            const actions = isMarkdown
+                ? ''
+                : `
                     <div class="flex items-center gap-1">
-                        <button type="button" class="run-cell-button j-cell-btn text-emerald-700 dark:text-emerald-400 font-semibold" title="Run Cell">▶ Run</button>
+                        <button type="button" class="run-cell-button j-cell-btn text-emerald-700 dark:text-emerald-400 font-semibold" title="Run up to this cell (Ctrl+Enter)">▶ Run</button>
+                        ${isLocked ? '' : `
                         <button type="button" class="add-cell-below-button j-cell-btn" title="Add Cell Below">➕</button>
                         <button type="button" class="move-cell-up-button j-cell-btn" title="Move Cell Up">▲</button>
                         <button type="button" class="move-cell-down-button j-cell-btn" title="Move Cell Down">▼</button>
                         <button type="button" class="delete-cell-button j-cell-btn text-rose-600 dark:text-rose-400" title="Delete Cell">🗑</button>
+                        `}
                     </div>
-                </div>
-                <div class="p-3 space-y-3">
+                `;
+
+            const body = isMarkdown
+                ? `<div class="markdown-cell md-content prose prose-slate dark:prose-invert max-w-none rounded-lg border border-violet-200 dark:border-violet-900/50 bg-violet-50/60 dark:bg-violet-950/20 p-4 text-sm"></div>`
+                : `
                     <div class="relative">
-                        <textarea class="cell-editor min-h-[100px] w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 font-mono text-sm text-slate-900 dark:text-slate-100 shadow-inner outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500" spellcheck="false"></textarea>
+                        <textarea class="cell-editor min-h-[100px] w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 font-mono text-sm text-slate-900 dark:text-slate-100 shadow-inner outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 ${isLocked ? 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 cursor-default' : ''}" spellcheck="false" ${isLocked ? 'readonly' : ''}></textarea>
                     </div>
                     <div class="cell-output space-y-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 p-3 text-sm text-slate-900 dark:text-slate-100 shadow-sm">
                         <div class="output-prompt flex items-center gap-2 border-b border-slate-200 dark:border-slate-800/80 pb-1 ${execNum === ' ' ? 'hidden' : ''}">
@@ -762,38 +1015,70 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                         <div class="figures space-y-2"></div>
                         <div class="error whitespace-pre-wrap font-mono text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 p-2.5 rounded-lg"></div>
                     </div>
+                `;
+
+            wrapper.innerHTML = `
+                <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-mono font-bold ${isMarkdown ? 'text-violet-600 dark:text-violet-300' : 'text-blue-600 dark:text-sky-400'} select-none">${isMarkdown ? 'Md' : `In [${execNum}]:`}</span>
+                        <span class="text-xs text-slate-400 dark:text-slate-500 font-mono">${label}</span>
+                        ${isLocked && !isMarkdown ? '<span class="text-[10px] uppercase tracking-wide text-slate-400">read-only</span>' : ''}
+                    </div>
+                    ${actions}
                 </div>
+                <div class="p-3 space-y-3">${body}</div>
             `;
 
             const textarea = wrapper.querySelector('.cell-editor');
-            textarea.value = cell.source;
-
-            textarea.addEventListener('focus', () => {
-                activeCellIndex = index;
-                renderCellSelection();
-            });
-
-            textarea.addEventListener('input', (e) => {
-                cells[index].source = e.target.value;
-                saveProgress();
-            });
-
-            textarea.addEventListener('keydown', (e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                    e.preventDefault();
-                    activeCellIndex = index;
-                    runNotebook();
+            const markdownNode = wrapper.querySelector('.markdown-cell');
+            if (markdownNode) {
+                if (cell.html) {
+                    markdownNode.innerHTML = cell.html;
+                } else {
+                    markdownNode.textContent = cell.source || '';
                 }
-            });
+            }
+            if (textarea) {
+                textarea.value = cell.source;
+                textarea.addEventListener('focus', () => {
+                    activeCellIndex = index;
+                    renderCellSelection();
+                });
+                textarea.addEventListener('keydown', (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                        e.preventDefault();
+                        activeCellIndex = index;
+                        runNotebook(false, index);
+                    }
+                    if (!isLocked && (e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+                        e.preventDefault();
+                        activeCellIndex = index;
+                        toggleCellComments(index);
+                    }
+                });
+                if (!isLocked) {
+                    textarea.addEventListener('input', (e) => {
+                        cells[index].source = e.target.value;
+                        saveProgress();
+                    });
+                }
+            }
 
-            wrapper.querySelector('.run-cell-button').addEventListener('click', () => {
-                activeCellIndex = index;
-                runNotebook();
-            });
-            wrapper.querySelector('.add-cell-below-button').addEventListener('click', () => addCellBelow(index));
-            wrapper.querySelector('.move-cell-up-button').addEventListener('click', () => moveCellUp(index));
-            wrapper.querySelector('.move-cell-down-button').addEventListener('click', () => moveCellDown(index));
-            wrapper.querySelector('.delete-cell-button').addEventListener('click', () => deleteCell(index));
+            const runButton = wrapper.querySelector('.run-cell-button');
+            if (runButton) {
+                runButton.addEventListener('click', () => {
+                    activeCellIndex = index;
+                    runNotebook(false, index);
+                });
+            }
+            const addButton = wrapper.querySelector('.add-cell-below-button');
+            if (addButton) addButton.addEventListener('click', () => addCellBelow(index));
+            const upButton = wrapper.querySelector('.move-cell-up-button');
+            if (upButton) upButton.addEventListener('click', () => moveCellUp(index));
+            const downButton = wrapper.querySelector('.move-cell-down-button');
+            if (downButton) downButton.addEventListener('click', () => moveCellDown(index));
+            const deleteButton = wrapper.querySelector('.delete-cell-button');
+            if (deleteButton) deleteButton.addEventListener('click', () => deleteCell(index));
 
             notebookContainer.appendChild(wrapper);
             notebookElements.push({wrapper, textarea});
@@ -812,21 +1097,22 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
     }
 
     function addCellBelow(index) {
-        cells.splice(index + 1, 0, {source: ''});
-        activeCellIndex = index + 1;
+        const insertAt = Math.min(Math.max(index + 1, firstWorkIndex()), plottingSectionIndex());
+        cells.splice(insertAt, 0, normalizeCell({source: '', cell_type: 'code', role: 'work'}));
+        activeCellIndex = insertAt;
         renderNotebook();
     }
 
     function addCell() {
-        cells.push({source: ''});
-        activeCellIndex = cells.length - 1;
-        renderNotebook();
+        addCellBelow(Math.max(firstWorkIndex() - 1, 0));
     }
 
     function deleteCell(index) {
-        if (cells.length <= 1) {
-            cells = [{source: ''}];
-            cellExecutionCounts = {};
+        if (!canEditCell(index)) return;
+        const workCells = cells.filter((cell) => cell.role === 'work' || (!cell.locked && cell.cell_type === 'code' && cell.role !== 'plotting_bonus' && cell.role !== 'imports'));
+        if (workCells.length <= 1 && cells[index]?.role !== 'plotting_bonus') {
+            cells[index] = normalizeCell({source: '', cell_type: 'code', role: 'work'});
+            cellExecutionCounts[index] = undefined;
         } else {
             cells.splice(index, 1);
             if (activeCellIndex >= cells.length) {
@@ -838,7 +1124,10 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
     }
 
     function moveCellUp(index) {
-        if (index <= 0) return;
+        if (!canEditCell(index)) return;
+        const minIndex = firstWorkIndex();
+        if (index <= minIndex) return;
+        if (cells[index - 1]?.locked || cells[index - 1]?.cell_type === 'markdown') return;
         const temp = cells[index];
         cells[index] = cells[index - 1];
         cells[index - 1] = temp;
@@ -853,7 +1142,10 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
     }
 
     function moveCellDown(index) {
-        if (index >= cells.length - 1) return;
+        if (!canEditCell(index)) return;
+        const maxIndex = plottingSectionIndex() - 1;
+        if (index >= maxIndex) return;
+        if (cells[index + 1]?.locked || cells[index + 1]?.cell_type === 'markdown') return;
         const temp = cells[index];
         cells[index] = cells[index + 1];
         cells[index + 1] = temp;
@@ -867,15 +1159,26 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         saveProgress();
     }
 
-    // Connect Classic Toolbar Buttons
-    if (tbSave) tbSave.addEventListener('click', saveProgress);
-    if (tbAdd) tbAdd.addEventListener('click', () => addCellBelow(activeCellIndex !== null ? activeCellIndex : cells.length - 1));
-    if (tbCut) tbCut.addEventListener('click', () => {
-        if (activeCellIndex >= 0 && activeCellIndex < cells.length) {
-            clipboardCellSource = cells[activeCellIndex].source;
-            deleteCell(activeCellIndex);
+    function toggleCellComments(index = activeCellIndex) {
+        if (!canEditCell(index)) return;
+        const lines = String(cells[index].source || '').split('\n');
+        const contentLines = lines.filter((line) => line.trim().length > 0);
+        const allCommented = contentLines.length > 0 && contentLines.every((line) => /^\s*#/.test(line));
+        cells[index].source = allCommented
+            ? lines.map((line) => line.replace(/^(\s*)#\s?/, '$1')).join('\n')
+            : lines.map((line) => (line.trim().length === 0 ? line : line.replace(/^(\s*)/, '$1# '))).join('\n');
+        renderNotebook();
+        const entry = notebookElements[index];
+        if (entry?.textarea) {
+            entry.textarea.focus();
+            const end = entry.textarea.value.length;
+            entry.textarea.setSelectionRange(end, end);
         }
-    });
+        saveProgress();
+    }
+
+    // Connect Classic Toolbar Buttons
+    if (tbAdd) tbAdd.addEventListener('click', () => addCellBelow(activeCellIndex !== null ? activeCellIndex : cells.length - 1));
     if (tbCopy) tbCopy.addEventListener('click', () => {
         if (activeCellIndex >= 0 && activeCellIndex < cells.length) {
             clipboardCellSource = cells[activeCellIndex].source;
@@ -883,31 +1186,52 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
     });
     if (tbMoveUp) tbMoveUp.addEventListener('click', () => moveCellUp(activeCellIndex));
     if (tbMoveDown) tbMoveDown.addEventListener('click', () => moveCellDown(activeCellIndex));
+    if (tbToggleComments) tbToggleComments.addEventListener('click', () => toggleCellComments(activeCellIndex));
     if (tbRun) tbRun.addEventListener('click', () => runNotebook());
     if (tbInterrupt) tbInterrupt.addEventListener('click', () => {
         progressSummary.textContent = 'Execution interrupted by user.';
     });
-    if (tbRestart) tbRestart.addEventListener('click', () => resetData());
 
     function renderOutputs(results) {
         notebookElements.forEach((entry, index) => {
             const result = results[index] || {};
             const stdout = entry.wrapper.querySelector('.stdout');
+            if (!stdout) return;
             const htmlOutput = entry.wrapper.querySelector('.html-output');
             const value = entry.wrapper.querySelector('.value');
             const figures = entry.wrapper.querySelector('.figures');
             const error = entry.wrapper.querySelector('.error');
             const promptHeader = entry.wrapper.querySelector('.output-prompt');
 
-            stdout.textContent = result.stdout || '';
+            const hasRealOutput = Boolean(
+                result.stdout
+                || result.html
+                || result.value_repr
+                || result.error
+                || (result.figures && result.figures.length)
+            );
+            const ranOkEmpty = index < results.length
+                && !result.error
+                && !hasRealOutput
+                && (result.cell_type || 'code') !== 'markdown';
+            const successMessage = ranOkEmpty ? 'Code ran successfully' : '';
+
+            stdout.textContent = result.stdout || successMessage;
+            stdout.classList.toggle('text-emerald-700', Boolean(successMessage));
+            stdout.classList.toggle('dark:text-emerald-300', Boolean(successMessage));
+            stdout.classList.toggle('italic', Boolean(successMessage));
             if (htmlOutput) {
                 htmlOutput.innerHTML = result.html || '';
             }
-            value.textContent = (!result.html && result.value_repr) ? `Result: ${result.value_repr}` : '';
-            error.textContent = result.error ? result.error : '';
-            figures.innerHTML = '';
+            if (value) {
+                value.textContent = (!result.html && result.value_repr) ? `Result: ${result.value_repr}` : '';
+            }
+            if (error) {
+                error.textContent = result.error ? result.error : '';
+            }
+            if (figures) figures.innerHTML = '';
 
-            const hasContent = result.stdout || result.html || result.value_repr || result.error || (result.figures && result.figures.length);
+            const hasContent = hasRealOutput || successMessage;
             if (promptHeader) {
                 if (hasContent) {
                     promptHeader.classList.remove('hidden');
@@ -919,9 +1243,9 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
             (result.figures || []).forEach((figure, figureIndex) => {
                 const image = document.createElement('img');
                 image.alt = `Figure ${figureIndex + 1} for cell ${index + 1}`;
-                image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white p-2 shadow-sm';
+                image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-2 shadow-sm';
                 image.src = `data:${figure.mime_type};base64,${figure.base64}`;
-                figures.appendChild(image);
+                if (figures) figures.appendChild(image);
             });
         });
 
@@ -945,7 +1269,7 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
             rightPanelLivePlot.innerHTML = '';
             const image = document.createElement('img');
             image.alt = 'Latest exercise plot';
-            image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white p-2 shadow-sm';
+            image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-2 shadow-sm';
             image.src = `data:${latestFigure.mime_type};base64,${latestFigure.base64}`;
             rightPanelLivePlot.appendChild(image);
         } else if (currentDataState && currentDataState.reference_plot && currentDataState.reference_plot.base64) {
@@ -953,7 +1277,7 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
             rightPanelLivePlot.innerHTML = '';
             const image = document.createElement('img');
             image.alt = 'Outcome reference plot';
-            image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white p-2 shadow-sm';
+            image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-2 shadow-sm';
             const plot = currentDataState.reference_plot;
             image.src = `data:${plot.mime_type || 'image/png'};base64,${plot.base64}`;
             rightPanelLivePlot.appendChild(image);
@@ -989,26 +1313,13 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         });
     }
 
-    function renderSoftFeedback(softFeedback) {
-        if (!softFeedbackPanel) return;
-        if (!softFeedback) {
-            softFeedbackPanel.classList.add('hidden');
-            return;
-        }
-        softFeedbackPanel.classList.remove('hidden');
-        if (softFeedbackText) {
-            softFeedbackText.textContent = (softFeedback.next_actions && softFeedback.next_actions[0])
-                || (softFeedback.messages && softFeedback.messages[softFeedback.messages.length - 1])
-                || 'Keep going.';
-        }
-        if (softFeedbackActions) {
-            softFeedbackActions.innerHTML = '';
-            (softFeedback.next_actions || []).slice(0, 3).forEach((action) => {
-                const li = document.createElement('li');
-                li.textContent = action;
-                softFeedbackActions.appendChild(li);
-            });
-        }
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     function renderProgress(progress, evaluation, isExplicitEvaluation = false) {
@@ -1018,12 +1329,10 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         if (!isExplicitEvaluation) {
             if (evaluationExplanationContainer) evaluationExplanationContainer.classList.add('hidden');
             if (evaluationChecksWrapper) evaluationChecksWrapper.classList.add('hidden');
-            renderSoftFeedback(evaluation?.soft_feedback || progress?.soft_feedback || null);
-            if (evaluation?.rubric) renderRubric(evaluation.rubric);
+            if (rubricScorecard) rubricScorecard.classList.add('hidden');
             return;
         }
 
-        if (softFeedbackPanel) softFeedbackPanel.classList.add('hidden');
         if (isExplicitEvaluation && evaluation) {
             evaluationExplanationContainer.classList.remove('hidden');
             evaluationChecksWrapper.classList.remove('hidden');
@@ -1039,12 +1348,12 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                 evaluationExplanationContainer.className = 'rounded-2xl p-4 transition-colors border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200';
                 evaluationStatusIcon.textContent = '!';
                 evaluationStatusTitle.textContent = 'Passed with issues';
-                evaluationExplanationText.textContent = evaluation.summary || 'Core passed, but approach or reflection still needs work.';
+                evaluationExplanationText.textContent = evaluation.summary || 'Core passed, but approach still needs work.';
             } else {
                 evaluationExplanationContainer.className = 'rounded-2xl p-4 transition-colors border bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200';
                 evaluationStatusIcon.textContent = '…';
                 evaluationStatusTitle.textContent = 'Incomplete';
-                evaluationExplanationText.textContent = (evaluation.summary || 'Some core checks still need work.') + ' Follow the next action on each failed item.';
+                evaluationExplanationText.textContent = evaluation.summary || 'Some core checks still need work.';
             }
 
             evaluationChecks.innerHTML = '';
@@ -1059,11 +1368,15 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                 evaluationChecks.appendChild(heading);
                 sectionChecks.forEach((check) => {
                     const item = document.createElement('li');
-                    const isBonus = check.type === 'plotting_bonus' || check.section === 'bonus';
+                    // Optional credit sections (plotting / reflection): neutral incomplete, starred when earned.
+                    const isOptional = check.type === 'plotting_bonus'
+                        || check.type === 'soft_skill'
+                        || check.section === 'bonus'
+                        || check.section === 'reflection';
                     let tone;
-                    if (isBonus && check.passed) {
+                    if (isOptional && check.passed) {
                         tone = 'bg-violet-100/70 dark:bg-violet-950/50 text-violet-900 dark:text-violet-200 border border-violet-300 dark:border-violet-800';
-                    } else if (isBonus) {
+                    } else if (isOptional) {
                         tone = 'bg-slate-100/80 dark:bg-slate-950/60 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700';
                     } else if (check.passed && check.issues) {
                         tone = 'bg-amber-100/60 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-900/70';
@@ -1073,11 +1386,14 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                         tone = 'bg-rose-100/60 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-900/70';
                     }
                     item.className = `rounded-xl px-3 py-2 space-y-1 ${tone}`;
-                    const mark = isBonus ? (check.passed ? '★' : '☆') : (check.passed ? (check.issues ? '!' : '✓') : '→');
-                    const label = check.message || 'Check complete.';
-                    const next = (!check.passed && check.next_action) ? `<p class="text-xs opacity-90"><span class="font-semibold">Next:</span> ${check.next_action}</p>` : '';
-                    const hint = (hintsRevealed && check.hint) ? `<p class="text-xs opacity-80 hint-line"><span class="font-semibold">Hint:</span> ${check.hint}</p>` : '';
-                    item.innerHTML = `<div class="flex items-start gap-2"><span class="font-bold select-none">${mark}</span><span>${label}</span></div>${next}${hint}`;
+                    const mark = isOptional ? (check.passed ? '★' : '☆') : (check.passed ? (check.issues ? '!' : '✓') : '→');
+                    const label = escapeHtml(check.message || 'Check complete.');
+                    const next = (!check.passed && check.next_action) ? `<p class="text-xs opacity-90"><span class="font-semibold">Next:</span> ${escapeHtml(check.next_action)}</p>` : '';
+                    const hint = (hintsRevealed && check.hint) ? `<p class="text-xs opacity-80 hint-line"><span class="font-semibold">Hint:</span> ${escapeHtml(check.hint)}</p>` : '';
+                    const correct = (!isOptional && !check.passed && check.correct_answer)
+                        ? `<div class="mt-1 rounded-lg border border-current/20 bg-white/40 dark:bg-slate-950/30 p-2"><p class="text-[10px] font-semibold uppercase tracking-[0.15em] opacity-80">Correct answer</p><pre class="mt-1 whitespace-pre-wrap break-words text-xs font-mono opacity-95">${escapeHtml(check.correct_answer)}</pre></div>`
+                        : '';
+                    item.innerHTML = `<div class="flex items-start gap-2"><span class="font-bold select-none">${mark}</span><span>${label}</span></div>${next}${correct}${hint}`;
                     evaluationChecks.appendChild(item);
                 });
             });
@@ -1086,6 +1402,13 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
                 const hasHints = checks.some((c) => c.hint);
                 revealHintButton.classList.toggle('hidden', !hasHints);
                 revealHintButton.textContent = hintsRevealed ? 'Hints shown' : 'Show hint';
+            }
+            if (revealAnswerButton) {
+                const answerFeedback = evaluation.answer_feedback || {};
+                const canReveal = Boolean(answerFeedback.can_reveal) || checks.some((c) => c.can_reveal_answer);
+                revealAnswerButton.classList.toggle('hidden', !canReveal);
+                revealAnswerButton.textContent = answersRevealed ? 'Correct answer shown' : 'Show correct answer';
+                revealAnswerButton.disabled = Boolean(answersRevealed);
             }
 
             const bonus = evaluation.plotting_bonus || null;
@@ -1098,26 +1421,33 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         }
     }
 
-    async function runNotebook(showEvaluation = false) {
+    async function runNotebook(showEvaluation = false, untilIndex = null) {
+        const runUntil = untilIndex == null
+            ? cells.length - 1
+            : Math.max(0, Math.min(untilIndex, cells.length - 1));
         globalExecutionCounter++;
-        cells.forEach((_, idx) => {
+        for (let idx = 0; idx <= runUntil; idx++) {
             cellExecutionCounts[idx] = globalExecutionCounter;
-        });
+        }
 
         const mode = showEvaluation ? 'evaluate' : 'run';
+        const body = {
+            cells,
+            data_state: currentDataState,
+            previous_results: previousResults,
+            mode,
+            reveal_expected: answersRevealed,
+        };
+        if (untilIndex != null && !showEvaluation) {
+            body.until_index = runUntil;
+        }
         const response = await fetch(runUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
             },
-            body: JSON.stringify({
-                cells,
-                data_state: currentDataState,
-                previous_results: previousResults,
-                mode,
-                reveal_expected: hintsRevealed,
-            }),
+            body: JSON.stringify(body),
         });
 
         const payload = await response.json();
@@ -1125,14 +1455,20 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         if (payload.data_state) {
             currentDataState = payload.data_state;
         }
+        if (payload.previous_attempts) {
+            setPreviousAttempts(payload.previous_attempts);
+        }
         if (Object.prototype.hasOwnProperty.call(payload, 'task_prompt')) {
-            renderTaskPrompt(payload.task_prompt);
+            renderTaskPrompt(payload.task_prompt, payload.task_prompt_html);
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, 'plotting_bonus_prompt')) {
+            applyPlottingBonusPrompt(payload.plotting_bonus_prompt, payload.plotting_bonus_prompt_html);
         }
         renderNotebook();
         renderOutputs(payload.cells || []);
         const evaluation = payload.evaluation || {};
-        if (payload.soft_feedback && !showEvaluation) {
-            evaluation.soft_feedback = payload.soft_feedback;
+        if (showEvaluation && (evaluation.reveal_expected || evaluation.answer_feedback?.revealed)) {
+            answersRevealed = true;
         }
         renderProgress(payload.progress || {summary: evaluation?.summary}, evaluation, showEvaluation);
         saveProgress();
@@ -1149,9 +1485,16 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         }
     }
 
-    async function resetData() {
+    async function startNewExercise() {
+        const value = currentDifficulty() || featureChoices[0]?.value || featureChoices[0]?.label || 'easy';
+        const label = featureChoices.find((choice) => String(choice.value ?? choice.label) === String(value))?.label || value;
         try {
-            await refreshScenario({});
+            // Same path as clicking the currently selected difficulty.
+            await resetExerciseForScenarioChange({
+                selected_feature: value,
+                selected_feature_label: label,
+                difficulty: value,
+            });
             if (window.AnonymousMetrics) {
                 window.AnonymousMetrics.trackReset({ cell_count: cells.length });
             }
@@ -1160,7 +1503,7 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
         }
     }
 
-    if (resetDataButton) resetDataButton.addEventListener('click', resetData);
+    if (resetDataButton) resetDataButton.addEventListener('click', startNewExercise);
     if (evaluateButton) {
         evaluateButton.addEventListener('click', () => {
             runNotebook(true);
@@ -1178,16 +1521,23 @@ window.ANON_METRICS_EXERCISE_SLUG = "{{ exercise.slug|escapejs }}";
             }
         });
     }
+    if (revealAnswerButton) {
+        revealAnswerButton.addEventListener('click', async () => {
+            if (answersRevealed) return;
+            answersRevealed = true;
+            await runNotebook(true);
+        });
+    }
     if (spotterButton) {
         spotterButton.addEventListener('click', toggleSpotterPanel);
     }
 
     renderTopicChoices();
     renderFeatureChoices();
-    renderTaskPrompt(currentTaskPrompt);
+    renderTaskPrompt(currentTaskPrompt, currentTaskPromptHtml);
     renderNotebook();
     renderOutputs([]);
-    renderProgress(progressState, {summary: progressState?.summary || 'Run for live feedback, then Evaluate for credit.', checks: []}, false);
+    renderProgress(progressState, {summary: progressState?.summary || 'Run the notebook, then click Evaluate Exercise for credit.', checks: []}, false);
 })();
 </script>
 {% endblock %}

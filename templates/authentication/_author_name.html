@@ -1,0 +1,5 @@
+{% if author.profile %}
+<a href="{% url 'public_profile' author.profile.nickname %}" class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 hover:underline">{{ author.get_display_name }}</a>{% if author.is_forum_moderator %}{% include "authentication/_moderator_badge.html" %}{% endif %}
+{% else %}
+{{ author.get_display_name|default:author.username|default:"Anonymous" }}{% if author.is_forum_moderator %}{% include "authentication/_moderator_badge.html" %}{% endif %}
+{% endif %}

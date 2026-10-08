@@ -1,0 +1,27 @@
+{
+  "success_message": "Nice work. Your advanced classification diagnostics match the expected answers.",
+  "failure_message": "Advanced classification checks failed. Re-read the imbalance/threshold/CV requirements.",
+  "graders": [
+    {
+      "id": "required_df",
+      "type": "required_variable",
+      "next_action": "Keep working from `df` and the provided arrays."
+    },
+    {
+      "id": "required_task",
+      "type": "required_variable",
+      "next_action": "Reload if `task` is missing."
+    },
+    {
+      "id": "required_answer",
+      "type": "required_variable",
+      "next_action": "Store results in the `answer` dict."
+    },
+    {
+      "id": "ml_core",
+      "type": "assertion",
+      "next_action": "Re-read the prompt and recompute `answer` from `df` / the split arrays.",
+      "failure_message": "Result does not match the task yet."
+    }
+  ]
+}

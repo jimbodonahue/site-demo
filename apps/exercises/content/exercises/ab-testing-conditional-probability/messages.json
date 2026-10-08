@@ -1,0 +1,16 @@
+{
+  "success_message": "Nice work. Your A/B or Bayes conclusion matches the expected decision.",
+  "failure_message": "Your decision does not match yet. Re-check the test or Bayes calculation.",
+  "graders": [
+    {
+      "id": "ab_core",
+      "type": "assertion",
+      "next_action": "Compute the required decision variables (`different` / `answer` / `relevant`) from the scenario."
+    },
+    {
+      "id": "stats_approach",
+      "type": "ast_process",
+      "next_action": "Use welch_ttest (or an equivalent mean comparison) for the A/B decision."
+    }
+  ]
+}

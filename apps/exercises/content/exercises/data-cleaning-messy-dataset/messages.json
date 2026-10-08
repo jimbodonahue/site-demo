@@ -1,0 +1,21 @@
+{
+  "success_message": "Nice work. Your cleaned table matches the tidy schema.",
+  "failure_message": "The cleaned table does not match yet. Fix headers, types, and joins step by step.",
+  "graders": [
+    {
+      "id": "no_nulls",
+      "type": "invariant",
+      "next_action": "Remove remaining missing values after cleaning."
+    },
+    {
+      "id": "messy_core",
+      "type": "assertion",
+      "next_action": "Align columns to the expected tidy schema, then repair values and merge extras."
+    },
+    {
+      "id": "cleanup_approach",
+      "type": "ast_process",
+      "next_action": "Use cleaning APIs (dropna/drop_duplicates/merge/map) rather than rewriting the table by hand."
+    }
+  ]
+}

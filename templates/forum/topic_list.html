@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Forum{% endblock %}
+{% block content %}
+<section class="max-w-4xl mx-auto py-8 px-4 space-y-6">
+  <!-- Forum Identity Banner -->
+  <div class="bg-slate-900 text-white rounded-3xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400 font-bold text-lg">
+        🔑
+      </div>
+      <div>
+        <div class="text-xs text-slate-400">Your Forum Identity (No Email Required)</div>
+        <div class="text-sm font-semibold text-slate-100 flex items-center gap-2">
+          <span>{{ forum_user.get_display_name|default:forum_user.username|default:"Anonymous User" }}</span>
+          {% if forum_token %}
+            <span class="text-xs font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
+              {{ forum_token|slice:":8" }}...
+            </span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      {% include "forum/_forum_safety_links.html" %}
+      <a href="{% url 'forum:download_token' %}" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Download Token File
+      </a>
+      <button type="button" onclick="document.getElementById('restore-token-modal').classList.remove('hidden')" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+        Restore Identity Token
+      </button>
+    </div>
+  </div>
+
+  {% if forum_suspended %}
+  <div class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/50 dark:text-amber-100">
+    Your forum participation is suspended. You can still browse topics and practice exercises.
+    Review the <a href="{% url 'forum:code_of_conduct' %}" class="font-semibold underline">Code of Conduct</a>
+    or use <a href="{% url 'forum:alert_admin' %}?from={{ request.get_full_path|urlencode }}" class="font-semibold underline">Alert Admin</a> if you need help.
+  </div>
+  {% endif %}
+
+  <!-- Restore Token Modal -->
+  <div id="restore-token-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 max-w-md w-full shadow-xl ring-1 ring-slate-200 dark:ring-slate-700">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white">Restore Forum Identity</h3>
+        <button type="button" onclick="document.getElementById('restore-token-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 dark:text-slate-300 text-xl font-bold">&times;</button>
+      </div>
+      <p class="text-xs text-slate-600 dark:text-slate-300 mb-4">Enter your downloaded token key string or upload your token file to log in as your returning user.</p>
+      <form method="post" action="{% url 'forum:restore_token' %}" enctype="multipart/form-data" class="space-y-4">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <div>
+          <label for="token_input" class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Token Key String</label>
+          <input type="text" name="token_input" id="token_input" placeholder="Paste token here..." class="w-full text-xs font-mono rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-slate-900 dark:text-slate-100 focus:border-sky-500 focus:outline-none">
+        </div>
+        <div class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+          <span class="flex-shrink mx-2 text-xs text-slate-400 font-medium">OR</span>
+          <div class="flex-grow border-t border-slate-200 dark:border-slate-700"></div>
+        </div>
+        <div>
+          <label for="token_file" class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">Upload Passkey Bundle File (.json, .txt)</label>
+          <input type="file" name="token_file" id="token_file" accept=".txt,.json" class="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="document.getElementById('restore-token-modal').classList.add('hidden')" class="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 dark:hover:text-slate-100 dark:text-slate-100">Cancel</button>
+          <button type="submit" class="px-4 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-xl transition">Restore Identity</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Useful Resources Wiki -->
+  <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 space-y-4">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Wiki</p>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Useful Resources</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Curated starting points by topic. Open a page, then add links and notes for the community.</p>
+    </div>
+    {% if resource_topics %}
+      <ul class="grid gap-3 sm:grid-cols-2">
+        {% for topic in resource_topics %}
+          <li>
+            <a href="{{ topic.get_absolute_url }}" class="block rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3 hover:border-sky-300 dark:hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition">
+              <span class="text-sm font-semibold text-slate-900 dark:text-white">{{ topic.title }}</span>
+              <span class="mt-1 block text-xs text-slate-500 dark:text-slate-400">{{ topic.post_count }} contribution{{ topic.post_count|pluralize }}</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400">Resource pages will appear here shortly.</p>
+    {% endif %}
+  </div>
+
+  <!-- Community spotlight topics -->
+  <div class="grid gap-4 sm:grid-cols-2">
+    {% if job_market_topic %}
+      <a href="{{ job_market_topic.get_absolute_url }}" class="block bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-sky-300 dark:hover:ring-sky-500 transition">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Career</p>
+        <h2 class="mt-1 text-xl font-bold text-slate-900 dark:text-white">Job Market Readiness</h2>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Interview prep, portfolios, and advice for landing data roles.</p>
+      </a>
+    {% endif %}
+    {% if achievements_topic %}
+      <a href="{{ achievements_topic.get_absolute_url }}" class="block bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-sky-300 dark:hover:ring-sky-500 transition">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">Community</p>
+        <h2 class="mt-1 text-xl font-bold text-slate-900 dark:text-white">Celebrate Achievements</h2>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Share wins, milestones, and progress with fellow learners.</p>
+      </a>
+    {% endif %}
+  </div>
+
+  <!-- Exercise Discussions -->
+  <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
+    <div class="flex justify-between items-center mb-6 gap-3 flex-wrap">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Exercise Discussions</h1>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Talk through exercises, soft-skill reflections, and coding approaches.</p>
+      </div>
+      <div id="new-topic-container">
+        {% if forum_suspended %}
+          <span class="rounded-full bg-slate-300 dark:bg-slate-600 px-5 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 cursor-not-allowed" title="Forum access suspended">New Topic</span>
+        {% else %}
+          <a href="{% url "forum:topic_create" %}" id="new-topic-btn" class="rounded-full bg-sky-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-sky-500">New Topic</a>
+        {% endif %}
+      </div>
+      <div id="gdpr-post-warning" class="hidden text-xs text-amber-600 dark:text-amber-450 bg-amber-50 dark:bg-amber-950/40 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-900/50">
+        Posting disabled (cookies declined)
+      </div>
+    </div>
+
+    <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        if (localStorage.getItem('gdpr_consent') === 'declined') {
+          const btn = document.getElementById('new-topic-btn');
+          const warning = document.getElementById('gdpr-post-warning');
+          if (btn) btn.classList.add('hidden');
+          if (warning) warning.classList.remove('hidden');
+        }
+      });
+    </script>
+    {% if exercise_topics %}
+      <ul class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for topic in exercise_topics %}
+          <li class="py-4">
+            <div class="flex items-center gap-2 flex-wrap">
+              <a href="{{ topic.get_absolute_url }}" class="text-lg font-semibold text-slate-900 dark:text-white hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-400">{{ topic.title }}</a>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                Exercise Discussion
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Posted by {% include "authentication/_author_name.html" with author=topic.created_by %} on {{ topic.created_at|date:"F j, Y" }}</p>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-slate-600 dark:text-slate-300">No exercise discussions yet.</p>
+    {% endif %}
+  </div>
+
+  {% if other_topics %}
+  <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
+    <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-4">Other Discussions</h2>
+    <ul class="divide-y divide-slate-100 dark:divide-slate-700">
+      {% for topic in other_topics %}
+        <li class="py-4">
+          <a href="{{ topic.get_absolute_url }}" class="text-lg font-semibold text-slate-900 dark:text-white hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-400">{{ topic.title }}</a>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Posted by {% include "authentication/_author_name.html" with author=topic.created_by %} on {{ topic.created_at|date:"F j, Y" }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

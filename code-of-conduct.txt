@@ -1,0 +1,38 @@
+Jim's Data Gym Code of Conduct
+
+Welcome! We believe that everyone deserves respect, regardless of who you are. That means you're welcome here! Our goal is to foster an inclusive, respectful, and collaborative environment,
+
+Core Values
+Respect: Acknowledge and celebrate diverse perspectives. Our differences make us interesting and bring new ideas.
+Inclusion: Avoid discrimination of all types (on basis of race, gender, religion, sexual orientation, country of origin, skill level in programming, English, data science, etc., economic status, neurodivergence, etc.).
+Empathy: Treat each other with kindness, especially those who may feel marginalized or less confident.
+
+
+Discrimination
+Our community is built on mutual respect. The discrimination and harassment are strictly prohibited and will not be tolerated. Posts may be removed, temporarily or permanently, to ensure that this remains a safe space for everyone. Repeated violators will be banned.
+
+Intellectual Property
+Please cite your sources, academic or otherwise. Give each other credit for the good ideas that you've found, and celebrate each other's achievements.
+
+Cyberbullying & Doxing
+Please refrain from posting the personal data of others, or trying to contact them outside the platform without explicit permission.
+
+Cultivating a Positive Environment
+Please consciously try to support and encourage other members. Realize that we come from a variety of backgrounds, and that others bring unique perspectives, as well as their own challenges. When possible, actively seek out opportunities to compliment and encourage your fellow learners. Keep all criticism constructive. For example, rather than saying, "You did this wrong," suggest improvements or resources. A better alternative is, "There is a really good blog post that might help you with that topic."
+
+Additionally, please try to embrace inclusive language, when possible.
+
+Reporting Concerns
+If you or another member is harmed by misconduct, report it confidentially using the "Alert Admin" button. A moderator will investigate promptly.
+
+
+Consequences of Violations
+First offense: Written warning, deleted post(s).
+
+Repeated violations: Temporary ban, suspension, or permanent expulsion.
+
+We take these policies seriously to ensure a safe space for all learners.
+
+Questions? Contact: admin@jimsdatagym.com
+
+We have the chance to make great connections, share wonderful resources, and learn incredible things. Let's help each other become better data people!

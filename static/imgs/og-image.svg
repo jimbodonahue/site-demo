@@ -1,8 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Learning platform preview">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="Jim's Data Gym">
+  <defs>
+    <linearGradient id="brand" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D6336C"/>
+      <stop offset="50%" stop-color="#20C997"/>
+      <stop offset="100%" stop-color="#0D6EFD"/>
+    </linearGradient>
+  </defs>
   <rect width="1200" height="630" fill="#f8fafc"/>
-  <rect x="72" y="72" width="1056" height="486" rx="36" fill="#0f172a"/>
-  <text x="120" y="220" fill="#f8fafc" font-family="Arial, sans-serif" font-size="64" font-weight="700">Learning Platform</text>
-  <text x="120" y="300" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="28">Three guided courses, structured lessons, and practice</text>
-  <circle cx="930" cy="235" r="110" fill="#38bdf8" opacity="0.9"/>
-  <circle cx="1010" cy="335" r="70" fill="#f59e0b" opacity="0.9"/>
+  <rect x="72" y="72" width="1056" height="486" rx="36" fill="url(#brand)"/>
+  <text x="120" y="250" fill="#ffffff" font-family="DejaVu Sans, Arial, sans-serif" font-size="64" font-weight="700">Jim's Data Gym</text>
+  <text x="120" y="320" fill="#f8fafc" font-family="DejaVu Sans, Arial, sans-serif" font-size="28">Prior · Likelihood · Posterior</text>
+  <circle cx="930" cy="235" r="90" fill="#D6336C" opacity="0.95"/>
+  <circle cx="1000" cy="320" r="70" fill="#20C997" opacity="0.95"/>
+  <circle cx="940" cy="390" r="55" fill="#0D6EFD" opacity="0.95"/>
 </svg>

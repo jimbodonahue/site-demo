@@ -1,21 +1,97 @@
 {% extends 'base.html' %}
 
-{% block title %}Profile{% endblock %}
+{% block title %}My Account{% endblock %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto">
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Your profile</h1>
-        <p class="mt-2 text-slate-600 dark:text-slate-300">Share a few details so other learners can get to know you.</p>
+    <div class="mb-8" id="create-account">
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">My Account</h1>
+        <p class="mt-2 text-slate-600 dark:text-slate-300">
+            Create or manage your passkey identity, avatar, nickname, and optional About Me details.
+            Exercise progress is saved with your account when you are signed in.
+        </p>
     </div>
 
     {% if messages %}
         {% for message in messages %}
-            <div class="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <div class="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
                 {{ message }}
             </div>
         {% endfor %}
     {% endif %}
+
+    <section id="enter-passkey" class="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Already have a passkey?</h2>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Enter your identification token or upload your passkey file to sign back in to an existing account.
+        </p>
+        <form method="post" action="{% url 'forum:restore_token' %}" enctype="multipart/form-data" class="mt-4 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'membership' %}">
+            <div>
+                <label for="membership-token-input" class="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Identification token</label>
+                <input type="text" name="token_input" id="membership-token-input" placeholder="Paste passkey here..." class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-mono text-xs text-slate-900 focus:border-primary-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+            </div>
+            <div class="relative flex items-center py-1">
+                <div class="flex-grow border-t border-slate-200 dark:border-slate-600"></div>
+                <span class="mx-2 flex-shrink text-xs font-medium text-slate-400">OR</span>
+                <div class="flex-grow border-t border-slate-200 dark:border-slate-600"></div>
+            </div>
+            <div>
+                <label for="membership-token-file" class="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">Upload passkey file</label>
+                <input type="file" name="token_file" id="membership-token-file" accept=".txt,.json" class="w-full text-xs text-slate-500 file:mr-3 file:rounded-xl file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-slate-700 dark:file:text-slate-100">
+            </div>
+            <button type="submit" class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white">
+                Enter passkey
+            </button>
+        </form>
+    </section>
+
+    <section class="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-6 dark:border-amber-800 dark:bg-amber-950/40">
+        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Your identification token</h2>
+        <p class="mt-2 text-sm font-semibold text-amber-950 dark:text-amber-100">
+            Important: your passkey cannot be replaced if it is lost. There is no password reset.
+            If you lose it, you would have to create a new account and start over — previous progress and posts cannot be recovered.
+        </p>
+        <p class="mt-2 text-sm text-slate-700 dark:text-slate-300">
+            Store this token somewhere safe and do not share it. Anyone with it can use your identity.
+            We do not keep an email address on your account for recovery.
+        </p>
+        {% if passkey %}
+            <div class="mt-4 rounded-lg border border-slate-300 bg-white px-4 py-3 font-mono text-sm break-all text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                {{ passkey }}
+            </div>
+            <div class="mt-4 flex flex-wrap gap-3">
+                <a href="{% url 'forum:download_token' %}?include_raw_token=1"
+                   class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                    Download identification token
+                </a>
+            </div>
+        {% else %}
+            <p class="mt-4 text-sm text-red-700 dark:text-red-300">No passkey is available yet.</p>
+        {% endif %}
+
+        <div class="mt-6 border-t border-amber-200 pt-6 dark:border-amber-800">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Email token to yourself</h3>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                Enter an email address once. We will send your identification token there and will not store the address afterwards.
+            </p>
+            <form method="post" action="{% url 'email_passkey' %}" class="mt-4 space-y-3">
+                {% csrf_token %}
+                {% if email_form.email.errors %}
+                    <p class="text-sm text-red-600">{{ email_form.email.errors|join:', ' }}</p>
+                {% endif %}
+                <label for="{{ email_form.email.id_for_label }}" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    {{ email_form.email.label }}
+                </label>
+                {{ email_form.email }}
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ email_form.email.help_text }}</p>
+                <button type="submit" class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white">
+                    Send token email
+                </button>
+            </form>
+        </div>
+    </section>
 
     <form method="post" enctype="multipart/form-data" class="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         {% csrf_token %}
@@ -25,6 +101,13 @@
                 {{ form.non_field_errors }}
             </div>
         {% endif %}
+
+        <div>
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Profile</h2>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                Update your avatar, nickname, and optional About Me section.
+            </p>
+        </div>
 
         <div class="grid gap-6 md:grid-cols-2">
             <div class="md:col-span-2">
@@ -36,18 +119,24 @@
             </div>
 
             <div class="md:col-span-2">
-                <label for="id_photo" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Profile photo</label>
+                <label for="id_photo" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Avatar</label>
                 {{ form.photo }}
+                {% if form.photo.help_text %}
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ form.photo.help_text }}</p>
+                {% endif %}
+                {% if form.photo.errors %}
+                    <p class="mt-2 text-sm text-red-600">{{ form.photo.errors|join:', ' }}</p>
+                {% endif %}
                 {% if profile and profile.photo %}
                     <div class="mt-3 flex items-center gap-4">
-                        <img src="{{ profile.photo.url }}" alt="Profile" class="h-20 w-20 rounded-full object-cover border border-slate-200 dark:border-slate-600">
-                        <span class="text-sm text-slate-500 dark:text-slate-300">Current photo</span>
+                        <img src="{{ profile.photo.url }}" alt="Avatar" class="h-20 w-20 rounded-full object-cover border border-slate-200 dark:border-slate-600">
+                        <span class="text-sm text-slate-500 dark:text-slate-300">Current avatar</span>
                     </div>
                 {% endif %}
             </div>
 
             <div class="md:col-span-2">
-                <label for="id_short_description" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Short description</label>
+                <label for="id_short_description" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Short intro</label>
                 {{ form.short_description }}
                 {% if form.short_description.errors %}
                     <p class="mt-2 text-sm text-red-600">{{ form.short_description.errors|join:', ' }}</p>
@@ -55,8 +144,13 @@
             </div>
 
             <div class="md:col-span-2">
-                <label for="id_motivation" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Motivation for data analysis</label>
+                <label for="id_motivation" class="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">About me</label>
+                <p class="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                    Optional. Share your background, programming and statistical experience, and non-technical hobbies if you want.
+                </p>
+                <div class="about-me-prose">
                 {{ form.motivation }}
+                </div>
                 {% if form.motivation.errors %}
                     <p class="mt-2 text-sm text-red-600">{{ form.motivation.errors|join:', ' }}</p>
                 {% endif %}
@@ -65,8 +159,34 @@
 
         <div class="flex items-center justify-end gap-3 pt-4">
             <a href="{% url 'home' %}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">Cancel</a>
-            <button type="submit" class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Save profile</button>
+            <button type="submit" class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">Save account</button>
         </div>
     </form>
+
+    <section id="badges" class="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+        {% include "badges/_earned_badges.html" with earned_badges=earned_badges show_gallery_link=True show_empty=True compact=True %}
+    </section>
+
+    {% if can_delete_account %}
+    <section id="delete-account" class="mt-8 rounded-2xl border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-950/30">
+        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Delete account</h2>
+        {% if pending_deletion %}
+            <p class="mt-2 text-sm text-red-900 dark:text-red-100">
+                Your account is scheduled for deletion by
+                {{ pending_deletion.scheduled_delete_at|date:"F j, Y, g:i a" }} UTC.
+                An admin has been notified. You can review the status on the
+                <a href="{% url 'delete_account' %}" class="font-semibold underline">deletion page</a>.
+            </p>
+        {% else %}
+            <p class="mt-2 text-sm text-slate-700 dark:text-slate-300">
+                Permanently remove your account and associated data. Your data will be deleted within 48 hours after you confirm.
+            </p>
+            <a href="{% url 'delete_account' %}"
+               class="mt-4 inline-flex items-center rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900/50">
+                Delete account…
+            </a>
+        {% endif %}
+    </section>
+    {% endif %}
 </div>
 {% endblock %}

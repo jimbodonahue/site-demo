@@ -233,11 +233,16 @@ def scrub_worker_env(env: dict[str, str] | None = None) -> dict[str, str]:
 def apply_resource_limits(
 	*,
 	cpu_seconds: int = 90,
-	address_space_mb: int = 1536,
+	address_space_mb: int = 4096,
 	file_size_mb: int = 128,
 	open_files: int = 256,
 ) -> None:
-	"""Best-effort rlimits for the notebook worker (no-op if unsupported)."""
+	"""Best-effort rlimits for the notebook worker (no-op if unsupported).
+
+	Do not set RLIMIT_NPROC here: on Linux it caps processes/threads for the
+	whole real UID, so a low value (or one below the user's current process
+	count) makes numpy/OpenBLAS hang while creating worker threads.
+	"""
 	try:
 		resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
 	except Exception:
@@ -254,10 +259,6 @@ def apply_resource_limits(
 		pass
 	try:
 		resource.setrlimit(resource.RLIMIT_NOFILE, (open_files, open_files))
-	except Exception:
-		pass
-	try:
-		resource.setrlimit(resource.RLIMIT_NPROC, (32, 32))
 	except Exception:
 		pass
 

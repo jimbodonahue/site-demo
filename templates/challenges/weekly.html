@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block title %}Weekly Challenges{% endblock %}
+{% block content %}
+<section class="max-w-5xl mx-auto py-8 px-4 space-y-6">
+  <!-- Forum Identity Banner -->
+  <div class="bg-slate-900 text-white rounded-3xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400 font-bold text-lg">
+        🔑
+      </div>
+      <div>
+        <div class="text-xs text-slate-400">Your Challenge Identity (No Email Required)</div>
+        <div class="text-sm font-semibold text-slate-100 flex items-center gap-2">
+          <span>{{ forum_user.get_display_name|default:forum_user.username|default:"Anonymous User" }}</span>
+          {% if forum_token %}
+            <span class="text-xs font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
+              {{ forum_token|slice:":8" }}...
+            </span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="{% url 'forum:download_token' %}" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition">
+        Download Token File
+      </a>
+      <a href="{% url 'forum:index' %}" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition">
+        Back to Forum
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 space-y-4">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Community Contests</p>
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Weekly Challenges</h1>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+          {{ week.label }} · {{ week.starts_on|date:"M j" }} – {{ week.ends_on|date:"M j, Y" }}
+          {% if is_current_week %}
+            <span class="ml-2 inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">Open for submissions</span>
+          {% else %}
+            <span class="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">Closed week</span>
+          {% endif %}
+        </p>
+      </div>
+      <form method="get" action="{% url 'challenges:index' %}" class="flex items-center gap-2" id="week-jump-form">
+        <label for="week-select" class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Browse</label>
+        <select id="week-select" class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:border-sky-500 focus:outline-none">
+          {% for w in weeks %}
+            <option value="{% url 'challenges:weekly' w.iso_year w.iso_week %}" {% if w.pk == week.pk %}selected{% endif %}>
+              {{ w.label }}{% if forloop.first %} (current){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    <p class="text-sm text-slate-600 dark:text-slate-300">Submit a data visualization, a learning resource, or a misleading headline — then upvote your favorites. One identity token covers forum and challenges.</p>
+  </div>
+
+  <!-- Weekly Data Viz -->
+  <section id="contest-data_viz" class="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 space-y-5">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Contest</p>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Weekly Data Viz</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Upload a .png chart or graphic. The community upvotes the best visual of the week.</p>
+    </div>
+
+    {% if data_viz_form %}
+      <form method="post" enctype="multipart/form-data" action="{{ week.get_absolute_url }}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 space-y-3" id="data-viz-form">
+        {% csrf_token %}
+        <input type="hidden" name="contest_id" value="{{ data_viz_contest.pk }}">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" for="{{ data_viz_form.title.id_for_label }}">Title</label>
+          {{ data_viz_form.title }}
+          {% if data_viz_form.title.errors %}<p class="mt-1 text-xs text-red-600">{{ data_viz_form.title.errors|striptags }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" for="{{ data_viz_form.image.id_for_label }}">PNG image</label>
+          {{ data_viz_form.image }}
+          {% if data_viz_form.image.errors %}<p class="mt-1 text-xs text-red-600">{{ data_viz_form.image.errors|striptags }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" for="{{ data_viz_form.notes.id_for_label }}">Notes (optional)</label>
+          {{ data_viz_form.notes }}
+        </div>
+        <div class="flex justify-end">
+          <button type="submit" class="rounded-full bg-sky-600 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-500 transition">Submit visualization</button>
+        </div>
+      </form>
+      <div id="gdpr-challenge-warning-viz" class="hidden text-sm text-amber-700 bg-amber-50 p-4 rounded-2xl border border-amber-200">
+        Submissions require cookies for identity. Accept cookies to enter the contest.
+      </div>
+    {% endif %}
+
+    {% if data_viz_submissions %}
+      <ul class="grid gap-4 sm:grid-cols-2">
+        {% for submission in data_viz_submissions %}
+          <li id="submission-{{ submission.pk }}" class="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
+            {% if submission.image %}
+              <a href="{{ submission.image.url }}" target="_blank" rel="noopener" class="block bg-slate-900/5">
+                <img src="{{ submission.image.url }}" alt="{{ submission.title }}" class="w-full max-h-64 object-contain bg-white dark:bg-slate-800">
+              </a>
+            {% endif %}
+            <div class="p-4 space-y-3 flex-1 flex flex-col">
+              <div class="flex-1">
+                <h3 class="font-semibold text-slate-900 dark:text-white">{{ submission.title }}</h3>
+                {% if submission.notes %}<p class="mt-1 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-line">{{ submission.notes }}</p>{% endif %}
+                <p class="mt-2 text-xs text-slate-400">by {% include "authentication/_author_name.html" with author=submission.author %} · {{ submission.created_at|date:"M j, g:i a" }}</p>
+              </div>
+              {% include "challenges/_upvote_button.html" with submission=submission %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400 italic">No visualizations yet. Be the first to submit one!</p>
+    {% endif %}
+  </section>
+
+  <!-- Resource of the Week -->
+  <section id="contest-resource" class="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 space-y-5">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Contest</p>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Resource of the Week</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Suggest a tutorial, article, video, or tool. Upvote the most useful link.</p>
+    </div>
+
+    {% if resource_form %}
+      <form method="post" action="{{ week.get_absolute_url }}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 space-y-3" id="resource-form">
+        {% csrf_token %}
+        <input type="hidden" name="contest_id" value="{{ resource_contest.pk }}">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" for="{{ resource_form.title.id_for_label }}">Title</label>
+          {{ resource_form.title }}
+          {% if resource_form.title.errors %}<p class="mt-1 text-xs text-red-600">{{ resource_form.title.errors|striptags }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" for="{{ resource_form.url.id_for_label }}">Link</label>
+          {{ resource_form.url }}
+          {% if resource_form.url.errors %}<p class="mt-1 text-xs text-red-600">{{ resource_form.url.errors|striptags }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" for="{{ resource_form.notes.id_for_label }}">Why it’s useful (optional)</label>
+          {{ resource_form.notes }}
+        </div>
+        <div class="flex justify-end">
+          <button type="submit" class="rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-500 transition">Submit resource</button>
+        </div>
+      </form>
+      <div id="gdpr-challenge-warning-resource" class="hidden text-sm text-amber-700 bg-amber-50 p-4 rounded-2xl border border-amber-200">
+        Submissions require cookies for identity. Accept cookies to enter the contest.
+      </div>
+    {% endif %}
+
+    {% if resource_submissions %}
+      <ul class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for submission in resource_submissions %}
+          <li id="submission-{{ submission.pk }}" class="py-4 flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0 flex-1">
+              <a href="{{ submission.url }}" target="_blank" rel="noopener" class="text-lg font-semibold text-sky-700 hover:underline break-words">{{ submission.title }}</a>
+              <p class="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400 break-all">{{ submission.url }}</p>
+              {% if submission.notes %}<p class="mt-2 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-line">{{ submission.notes }}</p>{% endif %}
+              <p class="mt-2 text-xs text-slate-400">by {% include "authentication/_author_name.html" with author=submission.author %} · {{ submission.created_at|date:"M j, g:i a" }}</p>
+            </div>
+            {% include "challenges/_upvote_button.html" with submission=submission %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400 italic">No resources yet. Share something helpful!</p>
+    {% endif %}
+  </section>
+
+  <!-- Misleading Headline -->
+  <section id="contest-misleading_headline" class="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 space-y-5">
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">Contest</p>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Misleading Headline</h2>
+      <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Share a headline that twists the data or oversells a finding. Upvote the most misleading (and teachable) example.</p>
+    </div>
+
+    {% if misleading_form %}
+      <form method="post" action="{{ week.get_absolute_url }}" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 space-y-3" id="misleading-form">
+        {% csrf_token %}
+        <input type="hidden" name="contest_id" value="{{ misleading_contest.pk }}">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" for="{{ misleading_form.title.id_for_label }}">Headline</label>
+          {{ misleading_form.title }}
+          {% if misleading_form.title.errors %}<p class="mt-1 text-xs text-red-600">{{ misleading_form.title.errors|striptags }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" for="{{ misleading_form.url.id_for_label }}">Source link (optional)</label>
+          {{ misleading_form.url }}
+          {% if misleading_form.url.errors %}<p class="mt-1 text-xs text-red-600">{{ misleading_form.url.errors|striptags }}</p>{% endif %}
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1" for="{{ misleading_form.notes.id_for_label }}">Why it’s misleading</label>
+          {{ misleading_form.notes }}
+          {% if misleading_form.notes.errors %}<p class="mt-1 text-xs text-red-600">{{ misleading_form.notes.errors|striptags }}</p>{% endif %}
+        </div>
+        <div class="flex justify-end">
+          <button type="submit" class="rounded-full bg-amber-600 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-500 transition">Submit headline</button>
+        </div>
+      </form>
+      <div id="gdpr-challenge-warning-misleading" class="hidden text-sm text-amber-700 bg-amber-50 p-4 rounded-2xl border border-amber-200">
+        Submissions require cookies for identity. Accept cookies to enter the contest.
+      </div>
+    {% endif %}
+
+    {% if misleading_submissions %}
+      <ul class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for submission in misleading_submissions %}
+          <li id="submission-{{ submission.pk }}" class="py-4 flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0 flex-1">
+              {% if submission.url %}
+                <a href="{{ submission.url }}" target="_blank" rel="noopener" class="text-lg font-semibold text-slate-900 dark:text-white hover:text-amber-700 break-words">“{{ submission.title }}”</a>
+              {% else %}
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white break-words">“{{ submission.title }}”</h3>
+              {% endif %}
+              {% if submission.notes %}<p class="mt-2 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-line">{{ submission.notes }}</p>{% endif %}
+              <p class="mt-2 text-xs text-slate-400">by {% include "authentication/_author_name.html" with author=submission.author %} · {{ submission.created_at|date:"M j, g:i a" }}</p>
+            </div>
+            {% include "challenges/_upvote_button.html" with submission=submission %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-sm text-slate-500 dark:text-slate-400 italic">No misleading headlines yet. Spot one in the wild!</p>
+    {% endif %}
+  </section>
+</section>
+
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const weekSelect = document.getElementById('week-select');
+    if (weekSelect) {
+      weekSelect.addEventListener('change', () => {
+        if (weekSelect.value) window.location.href = weekSelect.value;
+      });
+    }
+
+    if (localStorage.getItem('gdpr_consent') === 'declined') {
+      ['data-viz-form', 'resource-form', 'misleading-form'].forEach((id) => {
+        const form = document.getElementById(id);
+        if (form) form.classList.add('hidden');
+      });
+      ['gdpr-challenge-warning-viz', 'gdpr-challenge-warning-resource', 'gdpr-challenge-warning-misleading'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('hidden');
+      });
+    }
+
+    document.querySelectorAll('.submission-upvote-form').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const button = form.querySelector('.submission-upvote-button');
+        if (!button || button.disabled) return;
+        button.disabled = true;
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': form.querySelector('input[name=csrfmiddlewaretoken]')?.value || '',
+              'X-Requested-With': 'XMLHttpRequest',
+              'Accept': 'application/json',
+            },
+          });
+          if (!response.ok) throw new Error('Upvote failed');
+          const data = await response.json();
+          const upvoted = Boolean(data.upvoted);
+          button.dataset.upvoted = upvoted ? 'true' : 'false';
+          button.setAttribute('aria-pressed', upvoted ? 'true' : 'false');
+          button.classList.toggle('border-sky-300', upvoted);
+          button.classList.toggle('dark:border-sky-700', upvoted);
+          button.classList.toggle('bg-sky-50', upvoted);
+          button.classList.toggle('dark:bg-sky-950/40', upvoted);
+          button.classList.toggle('text-sky-700', upvoted);
+          button.classList.toggle('dark:text-sky-200', upvoted);
+          button.classList.toggle('border-slate-200', !upvoted);
+          button.classList.toggle('dark:border-slate-700', !upvoted);
+          button.classList.toggle('bg-white', !upvoted);
+          button.classList.toggle('dark:bg-slate-800', !upvoted);
+          button.classList.toggle('text-slate-600', !upvoted);
+          button.classList.toggle('dark:text-slate-300', !upvoted);
+          const label = button.querySelector('.upvote-label');
+          const count = button.querySelector('.upvote-count');
+          if (label) label.textContent = upvoted ? 'Upvoted' : 'Upvote';
+          if (count) count.textContent = data.upvote_count;
+        } catch (error) {
+          form.submit();
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

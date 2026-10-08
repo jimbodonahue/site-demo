@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+
+{% block title %}Data Zoo{% endblock %}
+
+{% block extra_css %}
+<style>
+    .zoo-shell textarea,
+    .zoo-shell pre,
+    .zoo-shell code,
+    .zoo-shell .font-mono {
+        font-family: "Bitstream Vera Sans Mono", ui-monospace, monospace;
+    }
+    .zoo-shell pre { white-space: pre-wrap; word-break: break-word; }
+    .j-tb-btn, .j-cell-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.35rem 0.6rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #334155;
+        cursor: pointer;
+    }
+    .dark .j-tb-btn, .dark .j-cell-btn {
+        border-color: #475569;
+        background: #1e293b;
+        color: #e2e8f0;
+    }
+    table.dataframe-preview {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.75rem;
+    }
+    table.dataframe-preview th,
+    table.dataframe-preview td {
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+    .dark table.dataframe-preview th,
+    .dark table.dataframe-preview td { border-color: #334155; }
+    table.dataframe-preview thead th { background: #f1f5f9; }
+    .dark table.dataframe-preview thead th { background: #1e293b; }
+    .dataset-card.selected {
+        border-color: rgb(14 165 233);
+        box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.25);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="zoo-shell max-w-7xl mx-auto py-6 px-4 space-y-6" data-run-url="{{ run_url }}" data-catalog-url="{{ catalog_url }}">
+    <form class="hidden">{% csrf_token %}</form>
+
+    <div class="rounded-3xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
+        <p class="text-sm font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Catalog</p>
+        <h1 class="mt-2 text-3xl font-bold text-slate-900 dark:text-white">Data Zoo</h1>
+        <p class="mt-2 max-w-3xl text-slate-600 dark:text-slate-300">
+            Pick a topic, inspect summary statistics for each dataset, then load one into a Python sandbox
+            with pandas, numpy, sklearn, matplotlib, and seaborn.
+        </p>
+        <div class="mt-5 flex flex-wrap items-end gap-4">
+            <div class="min-w-[16rem]">
+                <label for="zoo-topic-select" class="block text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">Topic</label>
+                <select id="zoo-topic-select" class="mt-2 w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm font-medium text-slate-800 dark:text-slate-100">
+                    {% for topic in topics %}
+                        <option value="{{ topic.value }}" {% if topic.value == selected_topic %}selected{% endif %}>{{ topic.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <p id="zoo-topic-meta" class="text-sm text-slate-500 dark:text-slate-400">
+                {{ datasets|length }} dataset{{ datasets|length|pluralize }} in {{ selected_topic_label }}
+            </p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <aside class="xl:col-span-1 space-y-4">
+            <div class="rounded-3xl bg-white dark:bg-slate-800 p-5 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Datasets</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Select a file to view stats and load it into the sandbox.</p>
+                <div id="dataset-list" class="mt-4 space-y-3 max-h-[40rem] overflow-y-auto pr-1">
+                    {% for item in datasets %}
+                        <button type="button"
+                            class="dataset-card w-full text-left rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 transition hover:border-sky-400 {% if item.dataset_file == selected_dataset %}selected{% endif %}"
+                            data-dataset-file="{{ item.dataset_file }}">
+                            <p class="font-semibold text-slate-900 dark:text-white">{{ item.label }}</p>
+                            <p class="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">{{ item.dataset_file }}</p>
+                            {% if item.ok %}
+                                <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                                    {{ item.summary.full_rows }} rows · {{ item.summary.full_columns }} columns
+                                </p>
+                            {% else %}
+                                <p class="mt-2 text-sm text-rose-600">Could not load summary</p>
+                            {% endif %}
+                        </button>
+                    {% empty %}
+                        <p class="text-sm text-slate-500">No parquet datasets found for this topic.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </aside>
+
+        <div class="xl:col-span-2 space-y-6">
+            <section id="summary-panel" class="rounded-3xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 space-y-4">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Summary statistics</p>
+                        <h2 id="summary-title" class="mt-1 text-xl font-bold text-slate-900 dark:text-white">Select a dataset</h2>
+                        <p id="summary-meta" class="mt-1 text-sm text-slate-500 dark:text-slate-400"></p>
+                    </div>
+                    <button type="button" id="load-sandbox-button" class="rounded-full bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-500 shadow-sm">
+                        Load into sandbox
+                    </button>
+                </div>
+                <div id="summary-missing" class="text-sm text-slate-600 dark:text-slate-300"></div>
+                <div id="summary-numeric" class="overflow-x-auto"></div>
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 mb-2">Preview</p>
+                    <div id="summary-preview" class="dataframe-preview-wrap overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 p-3"></div>
+                </div>
+            </section>
+
+            <section class="rounded-3xl bg-white dark:bg-slate-800 p-6 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600 dark:text-sky-400">Sandbox</p>
+                        <h2 class="text-xl font-bold text-slate-900 dark:text-white">Explore with Python</h2>
+                        <p id="sandbox-prompt" class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ task_prompt }}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" id="tb-run" class="j-tb-btn bg-emerald-100 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 font-semibold">
+                            <span>▶</span><span>Run</span>
+                        </button>
+                        <button type="button" id="tb-add" class="j-tb-btn" title="Add cell">➕ Cell</button>
+                    </div>
+                </div>
+                <div id="notebook-cells" class="space-y-4"></div>
+                <p id="run-status" class="text-sm text-slate-500 dark:text-slate-400">Run cells to inspect `df`.</p>
+            </section>
+        </div>
+    </div>
+
+    {{ starter_cells|json_script:"starter-cells-data" }}
+    {{ initial_data|json_script:"initial-data-json" }}
+    {{ datasets|json_script:"datasets-json" }}
+    {{ selected_dataset|default_if_none:""|json_script:"selected-dataset-json" }}
+</section>
+
+<script>
+(function () {
+    const shell = document.querySelector('.zoo-shell');
+    const runUrl = shell.dataset.runUrl;
+    const catalogUrl = shell.dataset.catalogUrl;
+    const topicSelect = document.getElementById('zoo-topic-select');
+    const topicMeta = document.getElementById('zoo-topic-meta');
+    const datasetList = document.getElementById('dataset-list');
+    const summaryTitle = document.getElementById('summary-title');
+    const summaryMeta = document.getElementById('summary-meta');
+    const summaryMissing = document.getElementById('summary-missing');
+    const summaryNumeric = document.getElementById('summary-numeric');
+    const summaryPreview = document.getElementById('summary-preview');
+    const loadSandboxButton = document.getElementById('load-sandbox-button');
+    const sandboxPrompt = document.getElementById('sandbox-prompt');
+    const notebookContainer = document.getElementById('notebook-cells');
+    const runStatus = document.getElementById('run-status');
+    const tbRun = document.getElementById('tb-run');
+    const tbAdd = document.getElementById('tb-add');
+    const csrf = () => document.querySelector('input[name=csrfmiddlewaretoken]')?.value || '';
+
+    let datasets = JSON.parse(document.getElementById('datasets-json').textContent || '[]');
+    let selectedDataset = JSON.parse(document.getElementById('selected-dataset-json').textContent || '""') || '';
+    let cells = JSON.parse(document.getElementById('starter-cells-data').textContent || '[]');
+    let currentDataState = JSON.parse(document.getElementById('initial-data-json').textContent || '{}');
+    let previousResults = [];
+    let notebookElements = [];
+    let activeCellIndex = 1;
+    let cellExecutionCounts = {};
+    let globalExecutionCounter = 0;
+
+    function normalizeCell(cell) {
+        return {
+            source: cell?.source != null ? String(cell.source) : '',
+            cell_type: cell?.cell_type || 'code',
+            locked: Boolean(cell?.locked) || cell?.role === 'imports',
+            role: cell?.role || 'work',
+        };
+    }
+    cells = cells.map(normalizeCell);
+
+    function selectedItem() {
+        return datasets.find((item) => item.dataset_file === selectedDataset) || datasets[0] || null;
+    }
+
+    function renderDatasetList() {
+        if (!datasetList) return;
+        if (!datasets.length) {
+            datasetList.innerHTML = '<p class="text-sm text-slate-500">No parquet datasets found for this topic.</p>';
+            return;
+        }
+        datasetList.innerHTML = datasets.map((item) => {
+            const rows = item.summary?.full_rows ?? item.summary?.rows ?? '—';
+            const cols = item.summary?.full_columns ?? item.summary?.columns ?? '—';
+            const selected = item.dataset_file === selectedDataset ? 'selected' : '';
+            const stats = item.ok
+                ? `${rows} rows · ${cols} columns`
+                : 'Could not load summary';
+            return `
+                <button type="button"
+                    class="dataset-card w-full text-left rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 transition hover:border-sky-400 ${selected}"
+                    data-dataset-file="${item.dataset_file}">
+                    <p class="font-semibold text-slate-900 dark:text-white">${item.label}</p>
+                    <p class="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">${item.dataset_file}</p>
+                    <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">${stats}</p>
+                </button>
+            `;
+        }).join('');
+        datasetList.querySelectorAll('.dataset-card').forEach((button) => {
+            button.addEventListener('click', () => {
+                selectedDataset = button.dataset.datasetFile;
+                renderDatasetList();
+                renderSummary();
+            });
+        });
+    }
+
+    function renderSummary() {
+        const item = selectedItem();
+        if (!item) {
+            summaryTitle.textContent = 'Select a dataset';
+            summaryMeta.textContent = '';
+            summaryMissing.textContent = '';
+            summaryNumeric.innerHTML = '';
+            summaryPreview.innerHTML = '';
+            return;
+        }
+        const summary = item.summary || {};
+        summaryTitle.textContent = item.label;
+        summaryMeta.textContent = `${summary.full_rows ?? summary.rows ?? '—'} rows · ${summary.full_columns ?? summary.columns ?? '—'} columns · sample stats below`;
+        const missingEntries = Object.entries(summary.missing || {});
+        summaryMissing.textContent = missingEntries.length
+            ? `Missing values: ${missingEntries.map(([col, n]) => `${col}=${n}`).join(', ')}`
+            : 'No missing values in the sampled columns.';
+
+        const numeric = summary.numeric_summary || {};
+        const cols = Object.keys(numeric);
+        if (!cols.length) {
+            summaryNumeric.innerHTML = '<p class="text-sm text-slate-500">No numeric columns in the sample.</p>';
+        } else {
+            const stats = Array.from(new Set(cols.flatMap((col) => Object.keys(numeric[col] || {}))));
+            let html = '<table class="dataframe-preview"><thead><tr><th>stat</th>';
+            cols.forEach((col) => { html += `<th>${col}</th>`; });
+            html += '</tr></thead><tbody>';
+            stats.forEach((stat) => {
+                html += `<tr><th>${stat}</th>`;
+                cols.forEach((col) => {
+                    const value = numeric[col]?.[stat];
+                    html += `<td>${value == null ? '—' : value}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            summaryNumeric.innerHTML = html;
+        }
+        summaryPreview.innerHTML = summary.preview_html || '<p class="text-sm text-slate-500">No preview available.</p>';
+    }
+
+    function renderNotebook() {
+        notebookContainer.innerHTML = '';
+        notebookElements = [];
+        cells.forEach((cell, index) => {
+            const wrapper = document.createElement('article');
+            const locked = Boolean(cell.locked);
+            wrapper.className = `overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 ${index === activeCellIndex ? 'ring-2 ring-sky-500/40' : ''}`;
+            const execNum = cellExecutionCounts[index] || ' ';
+            wrapper.innerHTML = `
+                <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-mono font-bold text-blue-600 dark:text-sky-400">In [${execNum}]:</span>
+                        <span class="text-xs text-slate-400 font-mono">${locked ? 'Imports (locked)' : `Cell ${index + 1}`}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button type="button" class="run-cell-button j-cell-btn text-emerald-700 dark:text-emerald-400 font-semibold">▶ Run</button>
+                        ${locked ? '' : '<button type="button" class="delete-cell-button j-cell-btn text-rose-600">🗑</button>'}
+                    </div>
+                </div>
+                <div class="p-3 space-y-3">
+                    <textarea class="cell-editor min-h-[100px] w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 font-mono text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-sky-500 ${locked ? 'bg-slate-100 dark:bg-slate-900 cursor-default' : ''}" spellcheck="false" ${locked ? 'readonly' : ''}></textarea>
+                    <div class="cell-output space-y-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 p-3 text-sm">
+                        <div class="stdout whitespace-pre-wrap font-mono text-xs"></div>
+                        <div class="html-output dataframe-preview-wrap"></div>
+                        <div class="value font-mono text-xs font-semibold text-sky-700 dark:text-sky-400"></div>
+                        <div class="figures space-y-2"></div>
+                        <div class="error whitespace-pre-wrap font-mono text-xs text-rose-700 dark:text-rose-300"></div>
+                    </div>
+                </div>
+            `;
+            const textarea = wrapper.querySelector('.cell-editor');
+            textarea.value = cell.source || '';
+            textarea.addEventListener('focus', () => { activeCellIndex = index; });
+            if (!locked) {
+                textarea.addEventListener('input', (e) => { cells[index].source = e.target.value; });
+            }
+            textarea.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    activeCellIndex = index;
+                    runNotebook(index);
+                }
+            });
+            wrapper.querySelector('.run-cell-button').addEventListener('click', () => {
+                activeCellIndex = index;
+                runNotebook(index);
+            });
+            const del = wrapper.querySelector('.delete-cell-button');
+            if (del) {
+                del.addEventListener('click', () => {
+                    if (cells.filter((c) => !c.locked).length <= 1) {
+                        cells[index].source = '';
+                    } else {
+                        cells.splice(index, 1);
+                    }
+                    renderNotebook();
+                });
+            }
+            notebookContainer.appendChild(wrapper);
+            notebookElements.push({ wrapper, textarea });
+        });
+    }
+
+    function renderOutputs(results) {
+        notebookElements.forEach((entry, index) => {
+            const result = results[index] || {};
+            entry.wrapper.querySelector('.stdout').textContent = result.stdout || '';
+            entry.wrapper.querySelector('.html-output').innerHTML = result.html || '';
+            entry.wrapper.querySelector('.value').textContent = (!result.html && result.value_repr) ? `Result: ${result.value_repr}` : '';
+            entry.wrapper.querySelector('.error').textContent = result.error || '';
+            const figures = entry.wrapper.querySelector('.figures');
+            figures.innerHTML = '';
+            (result.figures || []).forEach((figure, figureIndex) => {
+                const image = document.createElement('img');
+                image.alt = `Figure ${figureIndex + 1}`;
+                image.className = 'w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-2';
+                image.src = `data:${figure.mime_type};base64,${figure.base64}`;
+                figures.appendChild(image);
+            });
+        });
+    }
+
+    async function runNotebook(untilIndex = null) {
+        const runUntil = untilIndex == null ? cells.length - 1 : untilIndex;
+        globalExecutionCounter += 1;
+        for (let i = 0; i <= runUntil; i++) cellExecutionCounts[i] = globalExecutionCounter;
+        runStatus.textContent = 'Running…';
+        const body = {
+            cells,
+            previous_results: previousResults,
+            topic: topicSelect.value,
+            dataset_file: selectedDataset,
+            seed: currentDataState.seed || 42,
+            n_rows: currentDataState.n_rows || 800,
+        };
+        if (untilIndex != null) body.until_index = runUntil;
+        const response = await fetch(runUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrf(),
+            },
+            body: JSON.stringify(body),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+            runStatus.textContent = payload.error || 'Run failed.';
+            return;
+        }
+        previousResults = payload.cells || [];
+        if (payload.data_state) currentDataState = payload.data_state;
+        if (payload.task_prompt) sandboxPrompt.textContent = payload.task_prompt;
+        renderNotebook();
+        renderOutputs(payload.cells || []);
+        runStatus.textContent = payload.ran ? 'Run complete.' : (payload.error || 'Finished with errors.');
+    }
+
+    async function loadTopic(topic) {
+        topicMeta.textContent = 'Loading datasets…';
+        const response = await fetch(`${catalogUrl}?topic=${encodeURIComponent(topic)}`);
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            topicMeta.textContent = payload.error || 'Could not load topic.';
+            return;
+        }
+        datasets = payload.datasets || [];
+        selectedDataset = datasets[0]?.dataset_file || '';
+        topicMeta.textContent = `${datasets.length} dataset${datasets.length === 1 ? '' : 's'} in ${payload.topic_label}`;
+        renderDatasetList();
+        renderSummary();
+        currentDataState.topic = topic;
+        currentDataState.data_field = topic;
+        currentDataState.dataset_file = selectedDataset;
+    }
+
+    async function loadIntoSandbox() {
+        const item = selectedItem();
+        if (!item) return;
+        currentDataState = {
+            dataframe_source: 'zoo_explore',
+            topic: topicSelect.value,
+            data_field: topicSelect.value,
+            dataset_file: item.dataset_file,
+            seed: 42,
+            n_rows: 800,
+        };
+        cells = JSON.parse(document.getElementById('starter-cells-data').textContent || '[]').map(normalizeCell);
+        previousResults = [];
+        cellExecutionCounts = {};
+        globalExecutionCounter = 0;
+        runStatus.textContent = 'Dataset loaded — running starter cells…';
+        renderNotebook();
+        await runNotebook();
+    }
+
+    topicSelect.addEventListener('change', () => loadTopic(topicSelect.value));
+    loadSandboxButton.addEventListener('click', loadIntoSandbox);
+    tbRun.addEventListener('click', () => runNotebook());
+    tbAdd.addEventListener('click', () => {
+        cells.push(normalizeCell({ source: '', role: 'work' }));
+        activeCellIndex = cells.length - 1;
+        renderNotebook();
+    });
+
+    renderDatasetList();
+    renderSummary();
+    renderNotebook();
+})();
+</script>
+{% endblock %}

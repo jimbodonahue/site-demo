@@ -1,0 +1,31 @@
+{
+  "success_message": "Nice work. Your transformed frames match the expected bands/encodings.",
+  "failure_message": "df0/df1/df2 do not match yet. Check filters, encodings, and joins when `df_extra` is present.",
+  "graders": [
+    {
+      "id": "required_df0",
+      "type": "required_variable",
+      "next_action": "Assign the first band/encoding result to `df0`."
+    },
+    {
+      "id": "required_df1",
+      "type": "required_variable",
+      "next_action": "Assign the second result to `df1`."
+    },
+    {
+      "id": "required_df2",
+      "type": "required_variable",
+      "next_action": "Assign the third result to `df2`."
+    },
+    {
+      "id": "transform_core",
+      "type": "assertion",
+      "next_action": "Rebuild df0/df1/df2 from the prompt rules; reset_index(drop=True) when needed."
+    },
+    {
+      "id": "encoding_approach",
+      "type": "ast_process",
+      "next_action": "Use an encoding API such as map/apply/get_dummies, or merge/join when the hard prompt includes `df_extra`."
+    }
+  ]
+}

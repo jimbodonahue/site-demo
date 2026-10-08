@@ -1,0 +1,5 @@
+{
+  "easy": "The platform already split `{target}` into train/test arrays (`X_train`, `X_test`, `y_train`, `y_test`). Compare descriptive statistics between train and test, then set `answer['split_quality']` to `'good'` or `'bad'`. Also store `answer['train_target_mean']` and `answer['test_target_mean']` (rounded to 4 decimals).",
+  "medium": "One-hot encode categoricals with `{target}` as the target, then split into train/test {n_splits} times using seeds {seeds}. Store `answer['means']` as a list of dicts with keys `seed`, `train_target_mean`, `test_target_mean` (means rounded to 4 decimals), in the same seed order.",
+  "hard": "One-hot encode features for target `{target}`, scale with a {scaler} scaler, then run {k}-fold CV (shuffle=True). Store `answer['fold_means']` as a list of dicts with keys `fold`, `train_target_mean`, `test_target_mean` (rounded to 4 decimals), in fold order 0..K-1. Also set `answer['scaler']` to '{scaler}'."
+}

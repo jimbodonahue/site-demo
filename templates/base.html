@@ -6,52 +6,111 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="{% block meta_robots %}index, follow{% endblock %}">
-    <title>{% block title %}Default Title{% endblock %} | Your Site Name</title>
-    <meta name="description" content="{% block meta_description %}Your default meta description{% endblock %}">
-    <meta name="author" content="Your Site Name">
+    <title>{% block title %}Jim's Data Gym{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Practice data analytics with Python at Jim's Data Gym{% endblock %}">
+    <meta name="author" content="Jim's Data Gym">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ request.build_absolute_uri }}">
-    <meta property="og:title" content="{% block og_title %}{% endblock %} | Your Site Name">
-    <meta property="og:description" content="{% block og_description %}{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}Jim's Data Gym{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Practice data analytics with Python at Jim's Data Gym{% endblock %}">
     <meta property="og:image" content="{% static 'imgs/og-image.svg' %}">
 
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="{{ request.build_absolute_uri }}">
-    <meta property="twitter:title" content="{% block twitter_title %}{% endblock %} | Your Site Name">
-    <meta property="twitter:description" content="{% block twitter_description %}{% endblock %}">
-    <meta property="twitter:image" content="{% static 'imgs/og-image.svg' %}">
+    <!-- Favicon -->
+    <link rel="icon" href="{% static 'imgs/logo_portrait.svg' %}" type="image/svg+xml">
 
     <!-- Canonical URL -->
     <link rel="canonical" href="{{ request.build_absolute_uri }}">
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom fonts + markdown content styles -->
+    <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+    <link rel="stylesheet" href="{% static 'css/markdown.css' %}">
+
+    <!-- Tailwind CSS (+ typography plugin for prose helpers) -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
+                    fontFamily: {
+                        sans: ['"DejaVu Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        serif: ['Georgia', '"Times New Roman"', 'Times', 'serif'],
+                        forum: ['KpSans', '"DejaVu Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        mono: ['"Bitstream Vera Sans Mono"', 'ui-monospace', 'monospace'],
+                    },
                     colors: {
+                        // Logo accents: prior / likelihood / posterior
+                        prior: {
+                            DEFAULT: '#D6336C',
+                            50: '#fce8ef',
+                            100: '#f9d1df',
+                            200: '#f3a3bf',
+                            300: '#ed759f',
+                            400: '#e7477f',
+                            500: '#D6336C',
+                            600: '#ab2956',
+                            700: '#801f41',
+                            800: '#56142b',
+                            900: '#2b0a16',
+                        },
+                        likelihood: {
+                            DEFAULT: '#20C997',
+                            50: '#e6faf5',
+                            100: '#cef5eb',
+                            200: '#9debd7',
+                            300: '#6ce0c3',
+                            400: '#3bd6af',
+                            500: '#20C997',
+                            600: '#1aa179',
+                            700: '#13795b',
+                            800: '#0d503c',
+                            900: '#06281e',
+                        },
+                        posterior: {
+                            DEFAULT: '#0D6EFD',
+                            50: '#e7f1ff',
+                            100: '#cfe3ff',
+                            200: '#9fc7ff',
+                            300: '#6eaafe',
+                            400: '#3e8efe',
+                            500: '#0D6EFD',
+                            600: '#0a58ca',
+                            700: '#084298',
+                            800: '#052c65',
+                            900: '#031633',
+                        },
+                        // Site accents mapped to logo colors
                         primary: {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            200: '#bae6fd',
-                            300: '#7dd3fc',
-                            400: '#38bdf8',
-                            500: '#0ea5e9',
-                            600: '#0284c7',
+                            50: '#e7f1ff',
+                            100: '#cfe3ff',
+                            200: '#9fc7ff',
+                            300: '#6eaafe',
+                            400: '#3e8efe',
+                            500: '#0D6EFD',
+                            600: '#0a58ca',
+                            700: '#084298',
                         },
                         secondary: {
-                            50: '#fdf4ff',
-                            100: '#fae8ff',
-                            200: '#f5d0fe',
-                            300: '#f0abfc',
-                            400: '#e879f9',
-                            500: '#d946ef',
-                            600: '#c026d3',
+                            50: '#fce8ef',
+                            100: '#f9d1df',
+                            200: '#f3a3bf',
+                            300: '#ed759f',
+                            400: '#e7477f',
+                            500: '#D6336C',
+                            600: '#ab2956',
+                            700: '#801f41',
+                        },
+                        accent: {
+                            50: '#e6faf5',
+                            100: '#cef5eb',
+                            200: '#9debd7',
+                            300: '#6ce0c3',
+                            400: '#3bd6af',
+                            500: '#20C997',
+                            600: '#1aa179',
+                            700: '#13795b',
                         },
                         neutral: {
                             50: '#fafafa',
@@ -78,7 +137,7 @@
     {% block extra_css %}{% endblock %}
 </head>
 
-<body class="min-h-screen flex flex-col bg-neutral-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+<body class="min-h-screen flex flex-col bg-neutral-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-200 {% if request.resolver_match.app_name == 'forum' %}font-forum{% else %}font-sans{% endif %}">
 
     {% if messages %}
     <div id="toast-container" class="fixed top-20 right-4 z-[1000] space-y-3 max-w-md">
@@ -86,12 +145,12 @@
         <div class="
         toast
         px-4 py-3 rounded-lg shadow-lg text-sm font-medium flex items-start gap-3
-        {% if message.tags == 'success' %} bg-green-50 text-green-800 border border-green-200
-        {% elif message.tags == 'error' %} bg-red-50 text-red-800 border border-red-200
-        {% elif message.tags == 'warning' %} bg-amber-50 text-amber-800 border border-amber-200
-        {% else %} bg-blue-50 text-blue-800 border border-blue-200 {% endif %}
+        {% if message.tags == 'success' %} bg-green-50 text-green-800 border border-green-200 dark:bg-green-950/60 dark:text-green-100 dark:border-green-800
+        {% elif message.tags == 'error' %} bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/60 dark:text-red-100 dark:border-red-800
+        {% elif message.tags == 'warning' %} bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-100 dark:border-amber-800
+        {% else %} bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-100 dark:border-blue-800 {% endif %}
         ">
-            <span class="flex-1">{{ message|safe }}</span>
+            <span class="flex-1">{{ message }}</span>
             <button onclick="this.parentElement.remove()" class="opacity-60 hover:opacity-100">
                 ✕
             </button>
@@ -107,18 +166,44 @@
                 <!-- Logo and primary nav -->
                 <div class="flex">
                     <div class="flex-shrink-0 flex items-center">
-                        <a href="{% url 'home' %}" class="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                            YourLogo
+                        <a href="{% if is_site_gate %}{% url 'site_gate' %}{% else %}{% url 'home' %}{% endif %}" class="inline-flex items-center" aria-label="Jim's Data Gym home">
+                            <img src="{% static 'imgs/logo_landscape.svg' %}" alt="Jim's Data Gym" class="hidden h-10 w-auto sm:block">
+                            <img src="{% static 'imgs/logo_portrait.svg' %}" alt="Jim's Data Gym" class="h-10 w-auto sm:hidden">
                         </a>
                     </div>
+                    {% if not is_site_gate %}
                     <!-- Desktop Navigation -->
-                    <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                    <div class="hidden sm:ml-6 sm:flex sm:items-stretch sm:space-x-6">
                         <a href="{% url 'home' %}" class="inline-flex items-center px-1 pt-1 border-b-2 {% if request.resolver_match.url_name == 'home' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-200{% endif %} text-sm font-medium">Home</a>
-                        <a href="{% url 'exercises:list' %}" class="inline-flex items-center px-1 pt-1 border-b-2 {% if request.resolver_match.app_name == 'exercises' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-200{% endif %} text-sm font-medium">Tracks</a>
-                        <a href="{% url 'forum_placeholder' %}" class="inline-flex items-center px-1 pt-1 border-b-2 {% if request.resolver_match.url_name == 'forum_placeholder' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-200{% endif %} text-sm font-medium">Forum</a>
-                        <a href="{% url 'challenges_placeholder' %}" class="inline-flex items-center px-1 pt-1 border-b-2 {% if request.resolver_match.url_name == 'challenges_placeholder' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-200{% endif %} text-sm font-medium">Weekly Challenges</a>
-                        <a href="{% url 'data_zoo_placeholder' %}" class="inline-flex items-center px-1 pt-1 border-b-2 {% if request.resolver_match.url_name == 'data_zoo_placeholder' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-200{% endif %} text-sm font-medium">Data Zoo</a>
+
+                        <div class="relative group inline-flex">
+                            <a href="{% url 'about' %}" class="inline-flex items-center gap-1 px-1 pt-1 border-b-2 {% if request.resolver_match.url_name == 'about' or request.resolver_match.url_name == 'about_trainers' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 group-hover:border-neutral-300 dark:group-hover:border-neutral-600 group-hover:text-neutral-700 dark:group-hover:text-neutral-200{% endif %} text-sm font-medium">
+                                About Us
+                                <svg class="h-3.5 w-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </a>
+                            <div class="invisible absolute left-0 top-full z-40 mt-0 min-w-[11rem] rounded-xl border border-neutral-200 dark:border-slate-600 bg-white dark:bg-slate-800 py-2 shadow-lg opacity-0 transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                                <a href="{% url 'about' %}" class="block px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-slate-700">About the Gym</a>
+                                <a href="{% url 'about_trainers' %}" class="block px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-slate-700">Trainers</a>
+                            </div>
+                        </div>
+
+                        <div class="relative group inline-flex">
+                            <a href="{% url 'exercises:list' %}" class="inline-flex items-center gap-1 px-1 pt-1 border-b-2 {% if request.resolver_match.app_name == 'exercises' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 group-hover:border-neutral-300 dark:group-hover:border-neutral-600 group-hover:text-neutral-700 dark:group-hover:text-neutral-200{% endif %} text-sm font-medium">
+                                Exercises
+                                <svg class="h-3.5 w-3.5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </a>
+                            <div class="invisible absolute left-0 top-full z-40 mt-0 min-w-[11rem] rounded-xl border border-neutral-200 dark:border-slate-600 bg-white dark:bg-slate-800 py-2 shadow-lg opacity-0 transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                                <a href="{% url 'exercises:list' %}" class="block px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-slate-700">Tracks</a>
+                                <a href="{% url 'exercises:zoo' %}" class="block px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-slate-700">Data Zoo</a>
+                                <a href="{% url 'exercises:cardio' %}" class="block px-4 py-2 text-sm text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-slate-700">Cardio <span class="text-xs text-amber-600 dark:text-amber-300">(soon)</span></a>
+                            </div>
+                        </div>
+
+                        <a href="{% url 'forum:index' %}" class="inline-flex items-center px-1 pt-1 border-b-2 {% if request.resolver_match.app_name == 'forum' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-200{% endif %} text-sm font-medium">Forum</a>
+                        <a href="{% url 'badges:index' %}" class="inline-flex items-center px-1 pt-1 border-b-2 {% if request.resolver_match.app_name == 'badges' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-200{% endif %} text-sm font-medium">Badges</a>
+                        <a href="{% url 'membership' %}" class="inline-flex items-center px-1 pt-1 border-b-2 {% if request.resolver_match.url_name == 'membership' or request.resolver_match.url_name == 'profile' %}border-primary-500 text-neutral-900 dark:text-white{% else %}border-transparent text-neutral-500 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-200{% endif %} text-sm font-medium">My Account</a>
                     </div>
+                    {% endif %}
                 </div>
 
                 <!-- Desktop Right Nav / User Auth + Theme Toggle -->
@@ -127,16 +212,36 @@
                         <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
                         <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.707.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
                     </button>
+                    {% if not is_site_gate %}
                     {% if user.is_authenticated %}
-                        <a href="{% url 'profile' %}" class="text-sm text-neutral-600 dark:text-neutral-300 hover:text-primary-600 dark:hover:text-primary-400">{{ user.get_display_name }}</a>
+                        <a href="{% url 'notifications' %}" class="relative text-sm text-neutral-600 dark:text-neutral-300 hover:text-primary-600 dark:hover:text-primary-400">
+                            Notifications
+                            {% if unread_notification_count %}
+                                <span class="absolute -top-2 -right-3 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-semibold text-white">{{ unread_notification_count }}</span>
+                            {% endif %}
+                        </a>
                         {% if user.is_staff %}
                             <a href="/admin/" class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700">Admin Panel</a>
                         {% endif %}
+                    {% else %}
+                        <span class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Not signed in</span>
+                        <a href="{% url 'membership' %}#enter-passkey" class="text-sm text-neutral-600 dark:text-neutral-300 hover:text-primary-600 dark:hover:text-primary-400">Enter passkey</a>
+                        <a href="{% url 'membership' %}#create-account" class="inline-flex items-center rounded-md bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700">Create account</a>
+                    {% endif %}
+                    {% else %}
+                        <a href="#enter" class="inline-flex items-center rounded-md bg-accent-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-600">Enter</a>
                     {% endif %}
                 </div>
 
                 <!-- Mobile menu button -->
-                <div class="flex items-center sm:hidden">
+                <div class="flex items-center sm:hidden {% if is_site_gate %}gap-2{% endif %}">
+                    {% if is_site_gate %}
+                    <button id="theme-toggle-mobile" type="button" class="p-2 rounded-lg text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-slate-700 focus:outline-none transition-colors" title="Toggle theme">
+                        <svg class="theme-icon-dark hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                        <svg class="theme-icon-light hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.707.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <a href="#enter" class="inline-flex items-center rounded-md bg-accent-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-600">Enter</a>
+                    {% else %}
                     <button type="button"
                         class="mobile-menu-button inline-flex items-center justify-center p-2 rounded-md text-neutral-400 hover:text-neutral-500 hover:bg-neutral-100 dark:hover:bg-slate-700">
                         <span class="sr-only">Open main menu</span>
@@ -145,25 +250,38 @@
                                 d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
                     </button>
+                    {% endif %}
                 </div>
             </div>
 
+            {% if not is_site_gate %}
             <!-- Mobile Navigation -->
             <div class="mobile-menu hidden sm:hidden">
                 <div class="pt-2 pb-3 space-y-1">
                     <a href="{% url 'home' %}" class="block pl-3 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'home' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Home</a>
-                    <a href="{% url 'exercises:list' %}" class="block pl-3 pr-4 py-2 border-l-4 {% if request.resolver_match.app_name == 'exercises' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Tracks</a>
-                    <a href="{% url 'forum_placeholder' %}" class="block pl-3 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'forum_placeholder' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Forum</a>
-                    <a href="{% url 'challenges_placeholder' %}" class="block pl-3 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'challenges_placeholder' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Weekly Challenges</a>
-                    <a href="{% url 'data_zoo_placeholder' %}" class="block pl-3 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'data_zoo_placeholder' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Data Zoo</a>
+                    <p class="pl-3 pr-4 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">About Us</p>
+                    <a href="{% url 'about' %}" class="block pl-6 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'about' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">About the Gym</a>
+                    <a href="{% url 'about_trainers' %}" class="block pl-6 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'about_trainers' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Trainers</a>
+                    <p class="pl-3 pr-4 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">Exercises</p>
+                    <a href="{% url 'exercises:list' %}" class="block pl-6 pr-4 py-2 border-l-4 {% if request.resolver_match.app_name == 'exercises' and request.resolver_match.url_name != 'zoo' and request.resolver_match.url_name != 'zoo_catalog' and request.resolver_match.url_name != 'zoo_run' and request.resolver_match.url_name != 'cardio' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Tracks</a>
+                    <a href="{% url 'exercises:zoo' %}" class="block pl-6 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'zoo' or request.resolver_match.url_name == 'zoo_catalog' or request.resolver_match.url_name == 'zoo_run' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Data Zoo</a>
+                    <a href="{% url 'exercises:cardio' %}" class="block pl-6 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'cardio' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Cardio <span class="text-xs text-amber-600 dark:text-amber-300">(soon)</span></a>
+                    <a href="{% url 'forum:index' %}" class="block pl-3 pr-4 py-2 border-l-4 {% if request.resolver_match.app_name == 'forum' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Forum</a>
+                    <a href="{% url 'badges:index' %}" class="block pl-3 pr-4 py-2 border-l-4 {% if request.resolver_match.app_name == 'badges' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Badges</a>
+                    <a href="{% url 'membership' %}" class="block pl-3 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'membership' or request.resolver_match.url_name == 'profile' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">My Account</a>
                     {% if user.is_authenticated %}
-                        <a href="{% url 'profile' %}" class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700">Profile</a>
+                        <a href="{% url 'notifications' %}" class="block pl-3 pr-4 py-2 border-l-4 {% if request.resolver_match.url_name == 'notifications' %}border-primary-500 text-primary-700 bg-primary-50 dark:bg-slate-800 dark:text-primary-400{% else %}border-transparent text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700{% endif %} text-base font-medium">Notifications{% if unread_notification_count %} ({{ unread_notification_count }}){% endif %}</a>
+                    {% else %}
+                        <p class="block pl-3 pr-4 py-2 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Not signed in</p>
+                        <a href="{% url 'membership' %}#enter-passkey" class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700">Enter passkey</a>
+                        <a href="{% url 'membership' %}#create-account" class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-primary-600 hover:bg-neutral-50 hover:border-neutral-300">Create account</a>
                     {% endif %}
                     {% if user.is_authenticated and user.is_staff %}
                         <a href="/admin/" class="block pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-neutral-500 hover:bg-neutral-50 hover:border-neutral-300 hover:text-neutral-700">Admin Panel</a>
                     {% endif %}
                 </div>
             </div>
+            {% endif %}
         </nav>
     </header>
 
@@ -178,23 +296,17 @@
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <!-- Company Info -->
                 <div class="col-span-1 md:col-span-2">
-                    <h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Your Company</h3>
-                    <p class="text-neutral-600 dark:text-neutral-400 mb-4">A brief description of your company and what you do. Make it
-                        engaging and informative.</p>
+                    <a href="{% if is_site_gate %}{% url 'site_gate' %}{% else %}{% url 'home' %}{% endif %}" class="inline-flex items-center mb-4" aria-label="Jim's Data Gym home">
+                        <img src="{% static 'imgs/logo_landscape.svg' %}" alt="Jim's Data Gym" class="h-12 w-auto">
+                    </a>
+                    <p class="text-neutral-600 dark:text-neutral-400 mb-4">
+                        Jim's Data Gym — practice data analytics with Python, interactive tracks, and a supportive community.
+                    </p>
                     <div class="flex space-x-4">
-                        <a href="#" class="text-neutral-400 hover:text-primary-500">
-                            <span class="sr-only">Facebook</span>
-                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path fill-rule="evenodd"
-                                    d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"
-                                    clip-rule="evenodd" />
-                            </svg>
-                        </a>
-                        <a href="#" class="text-neutral-400 hover:text-primary-500">
-                            <span class="sr-only">Twitter</span>
-                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path
-                                    d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+                        <a href="https://www.linkedin.com/company/jims-data-gym/" class="text-neutral-400 hover:text-primary-500" target="_blank" rel="noopener noreferrer">
+                            <span class="sr-only">LinkedIn</span>
+                            <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
                             </svg>
                         </a>
                     </div>
@@ -204,6 +316,12 @@
                 <div>
                     <h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Quick Links</h3>
                     <ul class="space-y-2">
+                        {% if not is_site_gate %}
+                        <li><a href="{% url 'about' %}" class="text-neutral-600 dark:text-neutral-400 hover:text-primary-500">About the Gym</a></li>
+                        <li><a href="{% url 'about_trainers' %}" class="text-neutral-600 dark:text-neutral-400 hover:text-primary-500">Trainers</a></li>
+                        <li><a href="{% url 'how_to_gym' %}" class="text-neutral-600 dark:text-neutral-400 hover:text-primary-500">How to Gym</a></li>
+                        <li><a href="{% url 'feedback' %}?from={{ request.get_full_path|urlencode }}" class="text-neutral-600 dark:text-neutral-400 hover:text-primary-500">Feedback</a></li>
+                        {% endif %}
                         <li><a href="{% url 'privacy_policy' %}" class="text-neutral-600 dark:text-neutral-400 hover:text-primary-500">Privacy
                                 Policy</a></li>
                         <li><a href="{% url 'cookie_policy' %}" class="text-neutral-600 dark:text-neutral-400 hover:text-primary-500">Cookie Policy</a></li>
@@ -218,17 +336,17 @@
                 <div>
                     <h3 class="text-lg font-semibold text-neutral-900 dark:text-white mb-4">Legal</h3>
                     <ul class="space-y-2">
-                        <li class="text-neutral-600 dark:text-neutral-400">Jims Data Gym</li>
-                        <li class="text-neutral-600 dark:text-neutral-400">c/o [Your Name or Legal Entity]</li>
-                        <li class="text-neutral-600 dark:text-neutral-400">[Street Address]</li>
-                        <li class="text-neutral-600 dark:text-neutral-400">[City, Postcode]</li>
-                        <li class="text-neutral-600 dark:text-neutral-400">Email: hello@jimsdatagym.example</li>
+                        <li class="text-neutral-600 dark:text-neutral-400">Jim's Data Gym</li>
+                        <li class="text-neutral-600 dark:text-neutral-400">James Donahue</li>
+                        <li class="text-neutral-600 dark:text-neutral-400">Vogelhuettendeich 114</li>
+                        <li class="text-neutral-600 dark:text-neutral-400">21107 Hamburg, Germany</li>
+                        <li class="text-neutral-600 dark:text-neutral-400">Email: <a href="mailto:hello@jimsdatagym.com" class="hover:text-primary-500">hello@jimsdatagym.com</a></li>
                     </ul>
                 </div>
             </div>
 
             <div class="mt-8 pt-8 border-t border-neutral-200 dark:border-slate-700">
-                <p class="text-center text-neutral-500 dark:text-neutral-400">&copy; {% now "Y" %} Your Company. All rights reserved.</p>
+                <p class="text-center text-neutral-500 dark:text-neutral-400">&copy; {% now "Y" %} James Donahue / Jim's Data Gym. All rights reserved.</p>
             </div>
         </div>
     </footer>
@@ -256,30 +374,30 @@
         const darkIcon = document.getElementById('theme-toggle-dark-icon');
         const lightIcon = document.getElementById('theme-toggle-light-icon');
         const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeToggleMobileBtn = document.getElementById('theme-toggle-mobile');
 
         function syncThemeIcons() {
-            if (document.documentElement.classList.contains('dark')) {
-                lightIcon?.classList.remove('hidden');
-                darkIcon?.classList.add('hidden');
-            } else {
-                darkIcon?.classList.remove('hidden');
-                lightIcon?.classList.add('hidden');
-            }
+            const isDark = document.documentElement.classList.contains('dark');
+            lightIcon?.classList.toggle('hidden', !isDark);
+            darkIcon?.classList.toggle('hidden', isDark);
+            document.querySelectorAll('.theme-icon-light').forEach((el) => el.classList.toggle('hidden', !isDark));
+            document.querySelectorAll('.theme-icon-dark').forEach((el) => el.classList.toggle('hidden', isDark));
         }
         syncThemeIcons();
 
-        if (themeToggleBtn) {
-            themeToggleBtn.addEventListener('click', function() {
-                if (document.documentElement.classList.contains('dark')) {
-                    document.documentElement.classList.remove('dark');
-                    localStorage.setItem('theme', 'light');
-                } else {
-                    document.documentElement.classList.add('dark');
-                    localStorage.setItem('theme', 'dark');
-                }
-                syncThemeIcons();
-            });
+        function toggleTheme() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+            syncThemeIcons();
         }
+
+        themeToggleBtn?.addEventListener('click', toggleTheme);
+        themeToggleMobileBtn?.addEventListener('click', toggleTheme);
 
         document.querySelector('.mobile-menu-button')?.addEventListener('click', function () {
             document.querySelector('.mobile-menu')?.classList.toggle('hidden');

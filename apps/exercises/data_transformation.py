@@ -1,9 +1,16 @@
 from __future__ import annotations
 
-from typing import Any
+import io
+import zipfile
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
+
+from apps.exercises.content import render_prompt
+from apps.exercises.data_zoo import DATA_SCIENCE_SECTORS, ZOO_DATA_DIR
 
 BRANDS = [
 	"NordicHome",
@@ -49,6 +56,13 @@ SIZE_CANONICAL = {
 }
 
 SIZE_ORDINAL = {"Small": 1, "Medium": 2, "Large": 3, "XL": 4}
+
+# Hard mode sometimes swaps advanced encoding for a multi-table join drill.
+JOIN_HARD_PROBABILITY = 0.5
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+OLIST_ZIP_PATH = PROJECT_ROOT / "olist.zip"
+OLIST_DIR = ZOO_DATA_DIR / "ecommerce" / "olist"
 
 SATISFACTION_LABELS = [
 	"Very Dissatisfied",
@@ -129,7 +143,8 @@ def build_product_dataframe(
 	)
 	brands = _category_series("channel", "brand", "category", "segment", choices=BRANDS)
 	categories = _category_series("category", "channel", "segment", choices=CATEGORIES)
-	regions = _category_series("region", "market_segment", choices=REGIONS)
+	# Region labels must stay within REGIONS — hard mode binary-encodes with that fixed order.
+	regions = rng.choice(REGIONS, size=n)
 
 	return pd.DataFrame(
 		{
@@ -164,7 +179,7 @@ def _binary_encode_series(series: pd.Series, categories: list[str]) -> pd.DataFr
 	"""Encode categories as binary bit columns (ceil(log2(k)) bits)."""
 	index_map = {value: index for index, value in enumerate(categories)}
 	width = max(1, int(np.ceil(np.log2(max(len(categories), 2)))))
-	codes = series.map(index_map).astype(int).to_numpy()
+	codes = series.map(index_map).fillna(0).astype(int).to_numpy()
 	bits = {}
 	for bit in range(width):
 		bits[f"region_bit{bit}"] = ((codes >> bit) & 1).astype(int)
@@ -194,11 +209,12 @@ def _build_easy_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, An
 		df1 = df1.loc[:, columns]
 		df2 = df2.loc[:, columns]
 
-	prompt = (
-		f"Split the products into three price bands and keep only {_human_columns(columns)}. "
-		f"Create `df0` for prices at or below {low_max}, `df1` for prices strictly between "
-		f"{low_max} and {high_min}, and `df2` for prices at or above {high_min}. "
-		"Reset each result's index."
+	prompt = render_prompt(
+		"data_transformation",
+		"price_bands",
+		columns=_human_columns(columns),
+		low_max=low_max,
+		high_min=high_min,
 	)
 	return {
 		"difficulty": "easy",
@@ -254,30 +270,188 @@ def _build_medium_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, 
 			}
 		).reset_index(drop=True)
 		region_map_text = ", ".join(f"'{name}'→{index}" for index, name in enumerate(region_order))
-		df2_prompt = (
-			f"`df2` with region_code ({region_map_text}), satisfaction_score "
-			"(Very Dissatisfied=1 … Very Satisfied=5), and in_stock_flag (yes→1, no→0)"
+		df2_prompt = render_prompt(
+			"data_transformation",
+			"df2_region_code",
+			region_map_text=region_map_text,
 		)
 	else:
-		df2_prompt = (
-			"`df2` with region, satisfaction_score (Very Dissatisfied=1 … Very Satisfied=5), "
-			"and in_stock_flag (yes→1, no→0)"
-		)
+		df2_prompt = render_prompt("data_transformation", "df2_region_string")
 
-	prompt = (
-		"Clean and encode the messy categorical fields, preferably with `apply` / `lambda` "
-		"(or equivalent Series maps). Create three dataframes:\n"
-		"- `df0` with brand, price, and cleaned size "
-		"(normalize size_raw to Small/Medium/Large/XL)\n"
-		"- `df1` with brand, size_code (Small=1, Medium=2, Large=3, XL=4), and units_sold\n"
-		f"- {df2_prompt}\n"
-		"Keep row order aligned with `df` and reset each index."
-	)
+	prompt = render_prompt("data_transformation", "apply_encoding", df2_prompt=df2_prompt)
 	return {
 		"difficulty": "medium",
 		"mode": "apply_encoding",
 		"prompt": prompt,
 		"expected": {"df0": df0, "df1": df1, "df2": df2},
+	}
+
+
+
+def _normalize_topic(topic: str | None, data_field: str | None = None) -> str:
+	sector = str(data_field or topic or "retail").strip().lower() or "retail"
+	if sector not in DATA_SCIENCE_SECTORS:
+		return "retail"
+	return sector
+
+
+@lru_cache(maxsize=16)
+def _load_olist_csv(name: str) -> pd.DataFrame:
+	"""Load one Olist CSV from zoo_data/ecommerce/olist/ or project olist.zip."""
+	local = OLIST_DIR / name
+	if local.exists():
+		return pd.read_csv(local)
+
+	if not OLIST_ZIP_PATH.exists():
+		raise FileNotFoundError(
+			f"Olist data not found at {local} or {OLIST_ZIP_PATH}. "
+			"Place olist.zip in the project root or extract CSVs under zoo_data/ecommerce/olist/."
+		)
+	with zipfile.ZipFile(OLIST_ZIP_PATH) as zf:
+		with zf.open(name) as handle:
+			return pd.read_csv(io.BytesIO(handle.read()))
+
+
+def _join_pair_placeholder(
+	topic: str,
+	*,
+	seed: int,
+	rows: int,
+	rng: np.random.Generator,
+) -> dict[str, Any] | None:
+	"""Placeholder for non-ecommerce zoo topics.
+
+	Replace with real multi-table packs (see zoo-topic-dataset-groups.md).
+	Returning None keeps hard mode on the existing encoding path.
+	"""
+	_ = (topic, seed, rows, rng)
+	return None
+
+
+def _build_olist_join_hard(
+	*,
+	seed: int,
+	rows: int,
+	rng: np.random.Generator,
+) -> dict[str, Any]:
+	"""Hard join drill using real Olist order_items + products tables."""
+	items = _load_olist_csv("olist_order_items_dataset.csv")
+	products = _load_olist_csv("olist_products_dataset.csv")
+
+	items = items.dropna(subset=["product_id", "order_id", "price", "freight_value"]).copy()
+	products = products.dropna(subset=["product_id"]).copy()
+	products = products[
+		["product_id", "product_category_name", "product_weight_g"]
+	].drop_duplicates("product_id")
+
+	merged_keys = items.merge(products[["product_id"]], on="product_id", how="inner")
+	target_n = max(30, int(rows))
+	if len(merged_keys) < target_n:
+		sample = merged_keys.sample(n=len(merged_keys), random_state=seed).reset_index(drop=True)
+	else:
+		sample = merged_keys.sample(n=target_n, random_state=seed).reset_index(drop=True)
+
+	df = sample[
+		["order_id", "order_item_id", "product_id", "price", "freight_value"]
+	].copy().reset_index(drop=True)
+	df["price"] = pd.to_numeric(df["price"], errors="coerce").astype(float)
+	df["freight_value"] = pd.to_numeric(df["freight_value"], errors="coerce").astype(float)
+
+	needed_ids = set(df["product_id"].astype(str))
+	df_extra = (
+		products[products["product_id"].astype(str).isin(needed_ids)]
+		.copy()
+		.reset_index(drop=True)
+	)
+	df_extra["product_weight_g"] = pd.to_numeric(df_extra["product_weight_g"], errors="coerce")
+	df_extra["product_category_name"] = (
+		df_extra["product_category_name"].fillna("unknown").astype(str).str.strip()
+	)
+
+	joined = df.merge(df_extra, on="product_id", how="left")
+	weight_threshold = float(joined["product_weight_g"].median(skipna=True))
+	if np.isnan(weight_threshold):
+		weight_threshold = 0.0
+	weight_threshold = round(weight_threshold, 2)
+
+	df0 = joined[
+		["order_id", "product_id", "price", "product_category_name"]
+	].copy().reset_index(drop=True)
+
+	one_hot = pd.get_dummies(joined["product_category_name"], prefix="category")
+	one_hot = one_hot.reindex(sorted(one_hot.columns), axis=1).astype(int)
+	df1 = pd.concat(
+		[
+			joined[["product_id", "price"]].reset_index(drop=True),
+			one_hot.reset_index(drop=True),
+		],
+		axis=1,
+	)
+
+	df2 = pd.DataFrame(
+		{
+			"product_id": joined["product_id"],
+			"freight_value": joined["freight_value"],
+			"heavy_item": (
+				joined["product_weight_g"].fillna(0).astype(float) >= weight_threshold
+			).astype(int),
+		}
+	).reset_index(drop=True)
+
+	prompt = render_prompt(
+		"data_transformation",
+		"join_transform",
+		weight_threshold=weight_threshold,
+	)
+	_ = rng
+	return {
+		"df": df,
+		"df_extra": df_extra,
+		"task": {
+			"difficulty": "hard",
+			"mode": "join_transform",
+			"prompt": prompt,
+			"join_key": "product_id",
+			"weight_threshold": weight_threshold,
+			"expected": {"df0": df0, "df1": df1, "df2": df2},
+		},
+	}
+
+
+# Per-topic hard-mode join builders. Only ecommerce is wired (Olist); others are stubs.
+JOIN_PAIR_BUILDERS: dict[str, Callable[..., dict[str, Any] | None]] = {
+	sector: _join_pair_placeholder for sector in DATA_SCIENCE_SECTORS
+}
+JOIN_PAIR_BUILDERS["ecommerce"] = _build_olist_join_hard  # type: ignore[assignment]
+
+
+def _try_prepare_join_hard(
+	topic: str,
+	*,
+	seed: int,
+	rows: int,
+	rng: np.random.Generator,
+) -> dict[str, Any] | None:
+	builder = JOIN_PAIR_BUILDERS.get(topic, _join_pair_placeholder)
+	if builder is _join_pair_placeholder:
+		return None
+	try:
+		prepared = _build_olist_join_hard(seed=seed, rows=rows, rng=rng)
+	except FileNotFoundError:
+		return None
+	if not prepared:
+		return None
+	task = prepared.get("task") or {}
+	expected = task.get("expected") or {}
+	if not all(name in expected and len(expected[name]) > 0 for name in ("df0", "df1", "df2")):
+		return None
+	return {
+		"df": prepared["df"],
+		"df_extra": prepared.get("df_extra"),
+		"task": task,
+		"df0": None,
+		"df1": None,
+		"df2": None,
 	}
 
 
@@ -314,17 +488,13 @@ def _build_hard_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, An
 	).reset_index(drop=True)
 
 	bit_names = ", ".join(region_bits.columns)
-	prompt = (
-		"Apply more advanced encodings and return three dataframes:\n"
-		f"- `df0`: one-hot encode `{encode_col}` (0/1 integer columns named `{encode_col}_…`), "
-		"and include product_id and price\n"
-		f"- `df1`: binary-encode `region` into bits [{bit_names}] using the fixed category order "
-		f"{REGIONS} (index 0..{len(REGIONS) - 1}, bit0 = least significant bit), "
-		"and include product_id and units_sold\n"
-		"- `df2`: map-based encodings with product_id, size_code "
-		"(Small=1…XL=4 after cleaning size_raw), satisfaction_score "
-		"(Very Dissatisfied=1 … Very Satisfied=5), and in_stock_flag (yes→1, no→0)\n"
-		"Reset each index. One-hot column order may match sorted column names."
+	prompt = render_prompt(
+		"data_transformation",
+		"advanced_encoding",
+		encode_col=encode_col,
+		bit_names=bit_names,
+		regions=REGIONS,
+		region_max=len(REGIONS) - 1,
 	)
 	return {
 		"difficulty": "hard",
@@ -341,6 +511,57 @@ def _human_columns(columns: list[str]) -> str:
 	if len(columns) == 2:
 		return f"{columns[0]} and {columns[1]}"
 	return ", ".join(columns[:-1]) + f", and {columns[-1]}"
+
+
+def prepare_data_transformation(
+	difficulty: str = "easy",
+	seed: int = 42,
+	rows: int = 90,
+	*,
+	data_field: str | None = None,
+	dataset_file: str | None = None,
+	topic: str | None = None,
+	join_probability: float = JOIN_HARD_PROBABILITY,
+) -> dict[str, Any]:
+	"""Build notebook inputs for the Data Transformation exercise.
+
+	On hard mode, roughly ``join_probability`` of ecommerce attempts use a real
+	Olist join drill (`df` + `df_extra`). Other topics have join placeholders
+	and keep the advanced-encoding path until packs are wired.
+	"""
+	difficulty_key = (difficulty or "easy").lower().strip()
+	if difficulty_key not in {"easy", "medium", "hard"}:
+		difficulty_key = "easy"
+	sector = _normalize_topic(topic, data_field)
+	rng = np.random.default_rng(int(seed))
+
+	# Join drills are only implemented for ecommerce (Olist) today; other topics
+	# keep placeholder builders and stay on the encoding path.
+	if (
+		difficulty_key == "hard"
+		and JOIN_PAIR_BUILDERS.get(sector, _join_pair_placeholder) is not _join_pair_placeholder
+		and float(rng.random()) < float(join_probability)
+	):
+		joined = _try_prepare_join_hard(sector, seed=int(seed), rows=int(rows), rng=rng)
+		if joined is not None:
+			return joined
+
+	df = build_product_dataframe(
+		rows=rows,
+		seed=seed,
+		data_field=sector,
+		dataset_file=dataset_file,
+		topic=sector,
+	)
+	task = generate_data_transformation_task(df, difficulty=difficulty_key, seed=seed)
+	return {
+		"df": df,
+		"df_extra": None,
+		"task": task,
+		"df0": None,
+		"df1": None,
+		"df2": None,
+	}
 
 
 def generate_data_transformation_task(

@@ -26,6 +26,7 @@ TOPIC_CHOICES = [
 
 def update_clean_messy_exercise(apps, schema_editor):
     Exercise = apps.get_model("exercises", "Exercise")
+    Topic = apps.get_model("forum", "Topic")
 
     exercise = Exercise.objects.filter(slug="clean-messy-dataset").first()
     if not exercise:
@@ -80,20 +81,27 @@ Changing difficulty or topic resets the notebook with a fresh corrupted sample.
     )
     exercise.save()
 
+    Topic.objects.filter(exercise_id=exercise.id).update(
+        title="Discussion: Data Cleaning: Missing Values"
+    )
+
 
 def revert_clean_messy_exercise(apps, schema_editor):
     Exercise = apps.get_model("exercises", "Exercise")
+    Topic = apps.get_model("forum", "Topic")
     exercise = Exercise.objects.filter(slug="clean-messy-dataset").first()
     if not exercise:
         return
     exercise.title = "Clean a Messy Dataset"
     exercise.save(update_fields=["title"])
+    Topic.objects.filter(exercise_id=exercise.id).update(title="Discussion: Clean a Messy Dataset")
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
         ("exercises", "0007_seed_soft_skill_prompts"),
+        ("forum", "0003_topic_sections"),
     ]
 
     operations = [

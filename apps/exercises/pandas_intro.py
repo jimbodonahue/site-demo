@@ -8,7 +8,7 @@ import pandas as pd
 from apps.exercises.data_zoo import sample_zoo_dataframe
 
 DEFAULT_SECTOR = "insurance"
-DEFAULT_DATASET_FILE = "01_medical_cost_personal_dataset.parquet"
+DEFAULT_DATASET_FILE = "01_medical_cost_personal_dataset.csv.gz"
 DEFAULT_ROWS = 80
 
 # Fallback column role hints when a zoo frame is unusually sparse.
@@ -321,6 +321,8 @@ def _choose_sort(
 
 def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 	"""Build a large pool of single-variable summary prompts from the live zoo frame."""
+	from apps.exercises.content import render_prompt
+
 	roles = classify_intro_columns(df)
 	specs: list[dict[str, Any]] = []
 
@@ -334,25 +336,25 @@ def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 		specs.extend(
 			[
 				{
-					"prompt": f"What is the maximum {column} in the dataset?",
+					"prompt": render_prompt("pandas_intro", "summary_max", column=column),
 					"expected": max_expected,
 					"column": column,
 					"stat": "max",
 				},
 				{
-					"prompt": f"What is the minimum {column} in the dataset?",
+					"prompt": render_prompt("pandas_intro", "summary_min", column=column),
 					"expected": min_expected,
 					"column": column,
 					"stat": "min",
 				},
 				{
-					"prompt": f"What is the median {column} in the dataset?",
+					"prompt": render_prompt("pandas_intro", "summary_median", column=column),
 					"expected": float(series.median()) if not as_int else float(series.median()),
 					"column": column,
 					"stat": "median",
 				},
 				{
-					"prompt": f"What is the mean {column} in the dataset? Round to 2 decimal places.",
+					"prompt": render_prompt("pandas_intro", "summary_mean_rounded", column=column),
 					"expected": round(float(series.mean()), 2),
 					"column": column,
 					"stat": "mean_rounded",
@@ -364,7 +366,12 @@ def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 		for value in sorted({v for v in df[column].tolist()}):
 			specs.append(
 				{
-					"prompt": f"How many rows have {column} equal to '{value}'?",
+					"prompt": render_prompt(
+						"pandas_intro",
+						"summary_count_value",
+						column=column,
+						value=value,
+					),
 					"expected": int((df[column] == value).sum()),
 					"column": column,
 					"stat": "count_value",
@@ -372,7 +379,7 @@ def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 			)
 		specs.append(
 			{
-				"prompt": f"How many unique values does the '{column}' column have?",
+				"prompt": render_prompt("pandas_intro", "summary_nunique", column=column),
 				"expected": int(df[column].nunique()),
 				"column": column,
 				"stat": "nunique",
@@ -382,13 +389,13 @@ def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 	specs.extend(
 		[
 			{
-				"prompt": "How many rows are in the dataset?",
+				"prompt": render_prompt("pandas_intro", "summary_nrows"),
 				"expected": int(len(df)),
 				"column": None,
 				"stat": "nrows",
 			},
 			{
-				"prompt": "How many columns are in the dataset?",
+				"prompt": render_prompt("pandas_intro", "summary_ncols"),
 				"expected": int(df.shape[1]),
 				"column": None,
 				"stat": "ncols",
@@ -399,14 +406,17 @@ def _easy_summary_specs(df: pd.DataFrame) -> list[dict[str, Any]]:
 
 
 def _build_easy_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, Any]:
+	from apps.exercises.content import load_prompt
+
 	specs = _easy_summary_specs(df)
 	if not specs:
 		raise ValueError("No summary specs available for zoo frame.")
 	spec = specs[int(rng.integers(0, len(specs)))]
+	suffix = load_prompt("pandas_intro", "assign_answer_suffix", default=" Assign the result to `answer`.")
 	return {
 		"difficulty": "easy",
 		"mode": "summary",
-		"prompt": spec["prompt"] + " Assign the result to `answer`.",
+		"prompt": spec["prompt"] + suffix,
 		"columns": [spec["column"]] if spec["column"] else [],
 		"conditions": [],
 		"extra": {"kind": "summary", "stat": spec["stat"]},
@@ -423,10 +433,15 @@ def _build_medium_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, 
 	columns = _pick_columns(rng, roles["selectable"], count=column_count)
 
 	working = df.loc[_mask_from_conditions(df, conditions), columns].copy().reset_index(drop=True)
-	prompt = (
-		f"Return a dataframe with the {_human_column_list(columns)} of all rows where "
-		+ " and ".join(_format_condition(c["column"], c["operator"], c["value"]) for c in conditions)
-		+ ". Assign the result to `df`."
+	from apps.exercises.content import render_prompt
+
+	prompt = render_prompt(
+		"pandas_intro",
+		"subset",
+		columns=_human_column_list(columns),
+		conditions=" and ".join(
+			_format_condition(c["column"], c["operator"], c["value"]) for c in conditions
+		),
 	)
 	return {
 		"difficulty": "medium",
@@ -458,11 +473,22 @@ def _build_hard_task(df: pd.DataFrame, rng: np.random.Generator) -> dict[str, An
 	).reset_index(drop=True)
 
 	direction = "ascending" if sort_spec["ascending"] else "descending"
-	sort_phrase = f"sorted by {sort_spec['column']} in {direction} order"
-	prompt = (
-		f"Return a dataframe with the {_human_column_list(columns)} of all rows where "
-		+ " and ".join(_format_condition(c["column"], c["operator"], c["value"]) for c in conditions)
-		+ f", {sort_phrase}. Assign the result to `df`."
+	from apps.exercises.content import render_prompt
+
+	sort_phrase = render_prompt(
+		"pandas_intro",
+		"sort_phrase",
+		column=sort_spec["column"],
+		direction=direction,
+	)
+	prompt = render_prompt(
+		"pandas_intro",
+		"sorted_subset",
+		columns=_human_column_list(columns),
+		conditions=" and ".join(
+			_format_condition(c["column"], c["operator"], c["value"]) for c in conditions
+		),
+		sort_phrase=sort_phrase,
 	)
 	return {
 		"difficulty": "hard",

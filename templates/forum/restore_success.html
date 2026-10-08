@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Identity restored</title>
+</head>
+<body>
+    <p>Passkey identity restored. Exercise progress is already saved with your account on the server — redirecting…</p>
+    {{ next_url|json_script:"restored-next-url" }}
+    <script>
+        try {
+            const nextUrl = JSON.parse(document.getElementById('restored-next-url').textContent);
+            window.location.href = nextUrl;
+        } catch (e) {
+            window.location.href = "/";
+        }
+    </script>
+</body>
+</html>

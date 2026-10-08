@@ -1,175 +1,61 @@
 from django import forms
-from django.contrib.auth.forms import AuthenticationForm, UserChangeForm, UserCreationForm
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from apps.exercises.data_zoo import DATA_SCIENCE_SECTORS, list_zoo_datasets
 
-from .models import CustomUser, UserProfile
-
-
-class CustomUserCreationForm(UserCreationForm):
-    email = forms.EmailField(
-        required=True,
-        widget=forms.EmailInput(
-            attrs={
-                "placeholder": "you@example.com",
-            }
-        ),
-    )
-    username = forms.CharField(
-        required=False,
-        widget=forms.TextInput(
-            attrs={
-                "placeholder": "username",
-            }
-        ),
-    )
-    first_name = forms.CharField(
-        required=True,
-        widget=forms.TextInput(
-            attrs={
-                "placeholder": "John",
-            }
-        ),
-    )
-    last_name = forms.CharField(
-        required=True,
-        widget=forms.TextInput(
-            attrs={
-                "placeholder": "Doe",
-            }
-        ),
-    )
-    password1 = forms.CharField(
-        widget=forms.PasswordInput(
-            attrs={
-                "placeholder": "*********",
-            }
-        )
-    )
-    password2 = forms.CharField(
-        widget=forms.PasswordInput(
-            attrs={
-                "placeholder": "*********",
-            }
-        )
-    )
-
-    class Meta:
-        model = CustomUser
-        fields = (
-            "email",
-            "username",
-            "first_name",
-            "last_name",
-            "password1",
-            "password2",
-        )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            field.widget.attrs["class"] = "form-control"
-
-    def clean_email(self):
-        email = self.cleaned_data.get("email")
-        if CustomUser.objects.exclude(pk=self.instance.pk).filter(email=email).exists():
-            raise forms.ValidationError(_("This email address is already in use."))
-        return email
-
-    def clean_username(self):
-        username = self.cleaned_data.get("username")
-        if username:
-            if CustomUser.objects.filter(username=username).exists():
-                raise forms.ValidationError(_("This username is already in use."))
-            if (
-                not username.replace("_", "")
-                .replace("-", "")
-                .replace(".", "")
-                .replace("@", "")
-                .replace("+", "")
-                .isalnum()
-            ):
-                raise forms.ValidationError(
-                    _("Username can only contain letters, digits and @/./+/-/_")
-                )
-        return username
-
-    def save(self, commit=True):
-        user = super().save(commit=False)
-        user.email = self.cleaned_data["email"]
-        user.username = self.cleaned_data.get("username")
-        user.first_name = self.cleaned_data["first_name"]
-        user.last_name = self.cleaned_data["last_name"]
-        if commit:
-            user.save()
-        return user
-
-
-class CustomUserChangeForm(UserChangeForm):
-    password = None
-
-    email = forms.EmailField(
-        required=True, widget=forms.EmailInput(attrs={"class": "form-control"})
-    )
-    username = forms.CharField(
-        required=False,
-        max_length=150,
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-    first_name = forms.CharField(
-        required=True, widget=forms.TextInput(attrs={"class": "form-control"})
-    )
-    last_name = forms.CharField(
-        required=True, widget=forms.TextInput(attrs={"class": "form-control"})
-    )
-
-    class Meta:
-        model = CustomUser
-        fields = ("email", "username", "first_name", "last_name")
-
-    def clean_username(self):
-        username = self.cleaned_data.get("username")
-        if username:
-            if (
-                CustomUser.objects.exclude(pk=self.instance.pk)
-                .filter(username=username)
-                .exists()
-            ):
-                raise forms.ValidationError(_("This username is already in use."))
-            if (
-                not username.replace("_", "")
-                .replace("-", "")
-                .replace(".", "")
-                .replace("@", "")
-                .replace("+", "")
-                .isalnum()
-            ):
-                raise forms.ValidationError(
-                    _("Username can only contain letters, digits and @/./+/-/_")
-                )
-        return username
+from .models import AccountDeletionRequest, UserProfile
 
 
 class UserProfileForm(forms.ModelForm):
     nickname = forms.CharField(
         max_length=40,
         required=True,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "DataNerd"}),
+        label=_("Nickname"),
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-primary-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100",
+                "placeholder": "DataNerd",
+            }
+        ),
     )
     photo = forms.ImageField(
         required=False,
-        widget=forms.ClearableFileInput(attrs={"class": "form-control"}),
+        label=_("Avatar"),
+        widget=forms.ClearableFileInput(
+            attrs={
+                "class": "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200",
+            }
+        ),
+        help_text=_("Optional. PNG, JPG, JPEG, or WEBP under 2 MB."),
     )
     short_description = forms.CharField(
         required=False,
         max_length=180,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "I enjoy finding patterns in messy datasets."}),
+        label=_("Short intro"),
+        widget=forms.TextInput(
+            attrs={
+                "class": "w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-primary-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100",
+                "placeholder": "I enjoy finding patterns in messy datasets.",
+            }
+        ),
     )
     motivation = forms.CharField(
         required=False,
-        widget=forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "I got into data analysis because..."}),
+        label=_("About me"),
+        widget=forms.Textarea(
+            attrs={
+                "class": "w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-primary-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100",
+                "rows": 6,
+                "placeholder": (
+                    "Share as much or as little as you like: your background, "
+                    "programming and statistical experience, and non-technical hobbies."
+                ),
+            }
+        ),
+        help_text=_(
+            "Optional. Background, programming and statistical experience, and hobbies."
+        ),
     )
 
     class Meta:
@@ -210,53 +96,207 @@ class UserProfileForm(forms.ModelForm):
         return photo
 
 
+class EmailPasskeyForm(forms.Form):
+    """One-shot email address for mailing the passkey. Never persisted on the user."""
+
+    email = forms.EmailField(
+        label=_("Your email address"),
+        required=True,
+        widget=forms.EmailInput(
+            attrs={
+                "class": "w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-primary-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100",
+                "placeholder": "you@example.com",
+                "autocomplete": "email",
+            }
+        ),
+        help_text=_(
+            "We will send your passkey to this address once and will not store the email."
+        ),
+    )
+
+
+class AccountDeletionForm(forms.Form):
+    reason = forms.ChoiceField(
+        label=_("Reason for leaving"),
+        choices=AccountDeletionRequest.REASON_CHOICES,
+        required=True,
+        widget=forms.Select(
+            attrs={
+                "class": (
+                    "w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 "
+                    "focus:border-primary-500 focus:outline-none dark:border-slate-600 "
+                    "dark:bg-slate-900 dark:text-slate-100"
+                ),
+            }
+        ),
+    )
+    details = forms.CharField(
+        label=_("Tell us more (optional)"),
+        required=False,
+        max_length=5000,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 4,
+                "class": (
+                    "w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 "
+                    "focus:border-primary-500 focus:outline-none dark:border-slate-600 "
+                    "dark:bg-slate-900 dark:text-slate-100"
+                ),
+                "placeholder": "Anything that would help us understand why you are leaving…",
+            }
+        ),
+    )
+    feedback = forms.CharField(
+        label=_("Feedback or complaints (optional)"),
+        required=False,
+        max_length=5000,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 4,
+                "class": (
+                    "w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 "
+                    "focus:border-primary-500 focus:outline-none dark:border-slate-600 "
+                    "dark:bg-slate-900 dark:text-slate-100"
+                ),
+                "placeholder": "Suggestions, bugs, or complaints for the team…",
+            }
+        ),
+    )
+    confirm = forms.BooleanField(
+        label=_(
+            "I understand that my account and associated data will be deleted within 48 hours, "
+            "and that this cannot be undone."
+        ),
+        required=True,
+        widget=forms.CheckboxInput(
+            attrs={"class": "h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"}
+        ),
+    )
+
+    def clean_confirm(self):
+        if not self.cleaned_data.get("confirm"):
+            raise ValidationError(
+                _("Please confirm that you understand your data will be deleted within 48 hours.")
+            )
+        return True
+
+
+class ContactShareForm(forms.Form):
+    contact_details = forms.CharField(
+        label=_("Contact details"),
+        required=True,
+        max_length=2000,
+        widget=forms.Textarea(
+            attrs={
+                "class": "w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-primary-500 focus:outline-none dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100",
+                "rows": 4,
+                "placeholder": "Email, chat handle, or other ways to reach you…",
+            }
+        ),
+        help_text=_("This text is delivered once and is not stored after the other person views it."),
+    )
+
+    def clean_contact_details(self):
+        details = (self.cleaned_data.get("contact_details") or "").strip()
+        if not details:
+            raise forms.ValidationError(_("Please enter the contact details you want to share."))
+        return details
+
+
 class UserOnboardingForm(forms.Form):
-    data_field = forms.ChoiceField(
-        label=_("Field"),
-        choices=[],
-        required=True,
-        widget=forms.Select(attrs={"class": "form-control"}),
-    )
-    dataset_file = forms.ChoiceField(
-        label=_("Dataset file"),
-        choices=[],
-        required=True,
-        widget=forms.Select(attrs={"class": "form-control"}),
-    )
+	"""Rank up to five preferred Data Zoo topics (first choice is required)."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        field_choices = [(sector, sector.replace("_", " ").title()) for sector in DATA_SCIENCE_SECTORS]
-        self.fields["data_field"].choices = field_choices
-        selected_field = self.data.get("data_field") or self.initial.get("data_field") or field_choices[0][0]
-        self.fields["dataset_file"].choices = self._dataset_choices(selected_field)
+	topic_1 = forms.ChoiceField(
+		label=_("1st choice (default)"),
+		choices=[],
+		required=True,
+		widget=forms.Select(attrs={"class": "form-control"}),
+	)
+	topic_2 = forms.ChoiceField(
+		label=_("2nd choice (optional)"),
+		choices=[],
+		required=False,
+		widget=forms.Select(attrs={"class": "form-control"}),
+	)
+	topic_3 = forms.ChoiceField(
+		label=_("3rd choice (optional)"),
+		choices=[],
+		required=False,
+		widget=forms.Select(attrs={"class": "form-control"}),
+	)
+	topic_4 = forms.ChoiceField(
+		label=_("4th choice (optional)"),
+		choices=[],
+		required=False,
+		widget=forms.Select(attrs={"class": "form-control"}),
+	)
+	topic_5 = forms.ChoiceField(
+		label=_("5th choice (optional)"),
+		choices=[],
+		required=False,
+		widget=forms.Select(attrs={"class": "form-control"}),
+	)
+	dataset_file = forms.ChoiceField(
+		label=_("Preferred dataset for 1st choice (optional)"),
+		choices=[],
+		required=False,
+		widget=forms.Select(attrs={"class": "form-control"}),
+	)
 
-    def _dataset_choices(self, sector):
-        files = []
-        for path in list_zoo_datasets(sector):
-            files.append((path.name, path.name))
-        return files or [("", _("No datasets available"))]
+	TOPIC_FIELDS = ("topic_1", "topic_2", "topic_3", "topic_4", "topic_5")
 
-    def clean(self):
-        cleaned_data = super().clean()
-        selected_field = cleaned_data.get("data_field")
-        selected_file = cleaned_data.get("dataset_file")
-        if not selected_field or not selected_file:
-            return cleaned_data
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		blank = [("", _("— none —"))]
+		field_choices = [(sector, sector.replace("_", " ").title()) for sector in DATA_SCIENCE_SECTORS]
+		for index, name in enumerate(self.TOPIC_FIELDS):
+			self.fields[name].choices = field_choices if index == 0 else blank + field_choices
 
-        valid_files = {item[0] for item in self._dataset_choices(selected_field)}
-        if selected_file not in valid_files:
-            raise forms.ValidationError(_("Please select a valid dataset file for the chosen field."))
-        return cleaned_data
+		selected_field = (
+			self.data.get("topic_1")
+			or self.initial.get("topic_1")
+			or self.initial.get("data_field")
+			or field_choices[0][0]
+		)
+		file_choices = self._dataset_choices(selected_field)
+		self.fields["dataset_file"].choices = blank + file_choices
 
+	def _dataset_choices(self, sector):
+		files = []
+		for path in list_zoo_datasets(sector or ""):
+			files.append((path.name, path.name))
+		return files
 
-class CustomLoginForm(AuthenticationForm):
-    username = forms.EmailField(
-        label=_("Email"),
-        widget=forms.EmailInput(attrs={"class": "form-control", "autocomplete": "email"}),
-    )
-    password = forms.CharField(
-        label=_("Password"),
-        strip=False,
-        widget=forms.PasswordInput(attrs={"class": "form-control", "autocomplete": "current-password"}),
-    )
+	def clean(self):
+		cleaned_data = super().clean()
+		ranked: list[str] = []
+		for name in self.TOPIC_FIELDS:
+			value = (cleaned_data.get(name) or "").strip().lower()
+			if not value:
+				continue
+			if value not in DATA_SCIENCE_SECTORS:
+				self.add_error(name, _("Please choose a valid Data Zoo topic."))
+				continue
+			if value in ranked:
+				self.add_error(name, _("Each preferred topic must be unique."))
+				continue
+			ranked.append(value)
+
+		if not ranked:
+			self.add_error("topic_1", _("Please choose at least one preferred topic."))
+			return cleaned_data
+
+		cleaned_data["preferred_topics"] = ranked
+		cleaned_data["data_field"] = ranked[0]
+
+		selected_file = (cleaned_data.get("dataset_file") or "").strip()
+		if selected_file:
+			valid_files = {item[0] for item in self._dataset_choices(ranked[0])}
+			if selected_file not in valid_files:
+				self.add_error(
+					"dataset_file",
+					_("Please select a valid dataset file for your 1st-choice topic."),
+				)
+		else:
+			cleaned_data["dataset_file"] = ""
+		return cleaned_data

@@ -1,0 +1,1 @@
+Generate a null hypothesis for the comparison in this task, and connect it to what you actually tested. In 2–4 sentences, state H0 clearly and explain what rejecting (or not rejecting) it would mean for the product or business decision.

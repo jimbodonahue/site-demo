@@ -14,16 +14,12 @@ SOURCE_PLOT_KIND: dict[str, str] = {
 	"missing_values": "missingness_bar",
 	"descriptive_statistics": "box",
 	"ab_testing": "ab_choice",  # resolved with seed to hist_overlap or violin
-}
-
-KIND_LABELS: dict[str, str] = {
-	"any": "any matplotlib plot",
-	"bar": "a bar chart (`plt.bar` / `plt.barh`)",
-	"histogram": "a histogram (`plt.hist`)",
-	"missingness_bar": "a missingness bar chart (null counts with `plt.bar` / `plt.barh`)",
-	"box": "a box plot (`plt.boxplot`)",
-	"hist_overlap": "overlapping histograms for the two groups (`plt.hist` twice, ideally with `alpha`)",
-	"violin": "a violin plot (`plt.violinplot`)",
+	"ml_data_prep": "heatmap",
+	"ml_regression": "ml_regression_choice",  # scatter overlay or plot_tree
+	"ml_classification": "confusion_matrix",
+	"ml_advanced_classification": "confusion_matrix",
+	"ml_ensembles": "confusion_matrix",
+	"ml_unsupervised": "scatter",
 }
 
 PLOT_METHODS: dict[str, set[str]] = {
@@ -54,6 +50,10 @@ PLOT_METHODS: dict[str, set[str]] = {
 	"box": {"boxplot"},
 	"hist_overlap": {"hist", "histplot"},
 	"violin": {"violinplot"},
+	"heatmap": {"imshow", "pcolormesh", "matshow", "heatmap"},
+	"scatter": {"scatter", "plot"},
+	"confusion_matrix": {"imshow", "matshow", "pcolormesh", "heatmap", "bar", "barh"},
+	"tree": {"plot_tree"},
 }
 
 COLOR_KW = {"color", "c", "facecolor", "edgecolor", "cmap", "colors", "fc", "ec"}
@@ -80,6 +80,25 @@ def _difficulty(value: Any) -> str:
 	return text if text in {"easy", "medium", "hard"} else "easy"
 
 
+def _plotting_copy() -> dict[str, Any]:
+	from apps.exercises.content import load_json
+
+	data = load_json("plotting.json", default={})
+	return data if isinstance(data, dict) else {}
+
+
+def _kind_labels() -> dict[str, str]:
+	labels = _plotting_copy().get("kind_labels")
+	return labels if isinstance(labels, dict) else {}
+
+
+# Kept for callers/tests that import KIND_LABELS.
+def __getattr__(name: str):
+	if name == "KIND_LABELS":
+		return _kind_labels()
+	raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def _modifications_required(difficulty: str) -> int:
 	if difficulty == "hard":
 		return 2
@@ -90,9 +109,11 @@ def _modifications_required(difficulty: str) -> int:
 
 def resolve_plot_kind(source: str, seed: int = 42) -> str:
 	base = SOURCE_PLOT_KIND.get(source, "any")
-	if base != "ab_choice":
-		return base
-	return "hist_overlap" if int(seed) % 2 == 0 else "violin"
+	if base == "ab_choice":
+		return "hist_overlap" if int(seed) % 2 == 0 else "violin"
+	if base == "ml_regression_choice":
+		return "scatter" if int(seed) % 2 == 0 else "tree"
+	return base
 
 
 def build_plotting_bonus(
@@ -105,24 +126,21 @@ def build_plotting_bonus(
 	level = _difficulty(difficulty)
 	kind = resolve_plot_kind(source, seed=seed)
 	required_mods = _modifications_required(level)
-	label = KIND_LABELS.get(kind, "a plot")
+	copy = _plotting_copy()
+	labels = copy.get("kind_labels") if isinstance(copy.get("kind_labels"), dict) else {}
+	label = labels.get(kind, "a plot")
 	if required_mods <= 0:
-		mod_text = "No style modifications are required on easy — creating the plot is enough."
+		mod_key = "mod_easy"
 	elif required_mods == 1:
-		mod_text = (
-			"For credit on medium, customize the plot with **at least one** style change "
-			"(color, marker, or font size/family)."
-		)
+		mod_key = "mod_medium"
 	else:
-		mod_text = (
-			"For credit on hard, customize the plot with **at least two** different style changes "
-			"(from color, marker, and font)."
-		)
-	prompt = (
-		"### Plotting bonus\n"
-		f"Create {label}. {mod_text}\n"
-		"This is optional for passing the main exercise, but successful bonus plots earn badge progress."
+		mod_key = "mod_hard"
+	mod_text = str(copy.get(mod_key) or "")
+	template = str(
+		copy.get("bonus_body")
+		or "### Plotting bonus\nCreate {label}. {mod_text}\nThis is optional for passing the main exercise, but successful bonus plots earn badge progress."
 	)
+	prompt = template.format(label=label, mod_text=mod_text)
 	return {
 		"enabled": True,
 		"kind": kind,
@@ -267,7 +285,7 @@ def evaluate_plotting_bonus(
 
 	passed = bool(kind_matched and mods >= required_mods)
 	if not kind_matched:
-		message = f"Plotting bonus incomplete: still need {KIND_LABELS.get(kind, kind)}."
+		message = f"Plotting bonus incomplete: still need {_kind_labels().get(kind, kind)}."
 	elif mods < required_mods:
 		message = (
 			f"Plot type looks good, but need {required_mods} style customization"
@@ -276,7 +294,7 @@ def evaluate_plotting_bonus(
 		)
 	else:
 		message = (
-			f"Plotting bonus earned ({KIND_LABELS.get(kind, kind)}"
+			f"Plotting bonus earned ({_kind_labels().get(kind, kind)}"
 			+ (f", style: {', '.join(categories)}" if categories else "")
 			+ ")."
 		)
@@ -309,9 +327,7 @@ def attach_plotting_bonus_to_prepared(
 	if not isinstance(task, dict):
 		task = {"prompt": ""}
 		prepared["task"] = task
+	# Keep the bonus prompt on task["plotting_bonus"] only — the notebook shows
+	# it as a separate markdown cell, not inside the main task banner.
 	task["plotting_bonus"] = bonus
-	bonus_prompt = format_plotting_bonus_prompt(bonus)
-	base_prompt = str(task.get("prompt") or "").strip()
-	if bonus_prompt:
-		task["prompt"] = f"{base_prompt}\n\n{bonus_prompt}".strip() if base_prompt else bonus_prompt
 	return prepared

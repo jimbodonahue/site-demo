@@ -1,0 +1,19 @@
+{
+  "kind_labels": {
+    "any": "any matplotlib plot",
+    "bar": "a bar chart (`plt.bar` / `plt.barh`)",
+    "histogram": "a histogram (`plt.hist`)",
+    "missingness_bar": "a missingness bar chart (null counts with `plt.bar` / `plt.barh`)",
+    "box": "a box plot (`plt.boxplot`)",
+    "hist_overlap": "overlapping histograms for the two groups (`plt.hist` twice, ideally with `alpha`)",
+    "violin": "a violin plot (`plt.violinplot`)",
+    "heatmap": "a heatmap of feature values or correlations (`plt.imshow` / `plt.pcolormesh`)",
+    "scatter": "a 2D scatter plot (`plt.scatter`)",
+    "confusion_matrix": "a confusion-matrix style plot (`plt.imshow` / `sklearn.metrics.ConfusionMatrixDisplay`)",
+    "tree": "a decision-tree diagram (`sklearn.tree.plot_tree`)"
+  },
+  "bonus_body": "### Plotting bonus\nCreate {label}. {mod_text}\nThis is optional for passing the main exercise, but successful bonus plots earn badge progress.",
+  "mod_easy": "No style modifications are required on easy — creating the plot is enough.",
+  "mod_medium": "For credit on medium, customize the plot with **at least one** style change (color, marker, or font size/family).",
+  "mod_hard": "For credit on hard, customize the plot with **at least two** different style changes (from color, marker, and font)."
+}

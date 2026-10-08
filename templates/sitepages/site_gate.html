@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block meta_robots %}noindex, nofollow{% endblock %}
+{% block title %}Welcome | Jim's Data Gym{% endblock %}
+{% block meta_description %}Master data skills through structured, repetitive practice — not another video course. Training analytical judgment at Jim's Data Gym.{% endblock %}
+
+{% block content %}
+<div class="space-y-14">
+    {# Hero #}
+    <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-prior-500 via-likelihood-500 to-posterior-500 text-white shadow-xl px-6 py-16 sm:px-12 sm:py-20">
+        <div class="relative max-w-3xl mx-auto text-center sm:text-left">
+            <img
+                src="{% static 'imgs/logo_landscape.svg' %}"
+                alt="Jim's Data Gym"
+                class="mx-auto sm:mx-0 h-14 w-auto sm:h-16 drop-shadow-sm bg-white/90 rounded-2xl px-3 py-2"
+            >
+            <p class="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-white/90">
+                Exercising Data Muscles with Deliberate Practice
+            </p>
+            <h1 class="hero-display mt-3 text-3xl sm:text-5xl font-extrabold tracking-tight">
+                Training Analytical Judgment Through Deliberate Practice
+            </h1>
+            <p class="mt-4 text-lg text-white/90 max-w-2xl mx-auto sm:mx-0">
+                Master data skills the way experts do — through structured, repetitive practice. Not another video course.
+            </p>
+            <div class="mt-8 flex flex-wrap justify-center sm:justify-start gap-3">
+                <a href="#enter" class="rounded-full bg-white px-6 py-3 text-sm font-semibold text-posterior-700 shadow hover:bg-neutral-100 transition">
+                    Enter the gym
+                </a>
+                <a href="#about" class="rounded-full border border-white/40 bg-white/10 px-6 py-3 text-sm font-semibold text-white hover:bg-white/20 transition">
+                    Learn more
+                </a>
+            </div>
+        </div>
+    </section>
+
+    {# Blog pointer #}
+    <section class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 sm:p-8 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 dark:text-primary-400">Updates</p>
+        <h2 class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">Follow our blog for updates</h2>
+        <p class="mt-3 text-slate-600 dark:text-slate-300 leading-relaxed">
+            I'll be pushing blog posts every week or two. Some give exciting updates on new phases on the way to launching the product! Others are just me rambling. I try to include pictures.
+        </p>
+        <a
+            href="https://jimsdatagym.com/blog"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-4 inline-flex text-sm font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+        >
+            Read the blog on jimsdatagym.com
+        </a>
+    </section>
+
+    {# Problem / Solution #}
+    <section id="about" class="space-y-8">
+        <div class="text-center max-w-3xl mx-auto">
+            <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+                The Gap between Bootcamps and Real-World Data Science
+            </h2>
+        </div>
+
+        <div class="grid gap-6 md:grid-cols-2">
+            <div class="rounded-2xl border border-secondary-200 dark:border-secondary-700/40 bg-white dark:bg-slate-800 p-6 sm:p-8 shadow-sm">
+                <h3 class="text-xl font-bold text-secondary-600 dark:text-secondary-400">The Problem</h3>
+                <p class="mt-3 text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Traditional data science education excels at teaching tools, syntax, and theory.
+                </p>
+                <p class="mt-3 text-slate-600 dark:text-slate-300 leading-relaxed">
+                    What it rarely develops is <em>judgment</em> — the ability to:
+                </p>
+                <ul class="mt-4 space-y-2 text-slate-700 dark:text-slate-300">
+                    <li class="flex gap-2"><span class="text-secondary-500 font-bold" aria-hidden="true">·</span> Validate datasets and assumptions</li>
+                    <li class="flex gap-2"><span class="text-secondary-500 font-bold" aria-hidden="true">·</span> Select appropriate methodologies</li>
+                    <li class="flex gap-2"><span class="text-secondary-500 font-bold" aria-hidden="true">·</span> Interpret ambiguous or conflicting results</li>
+                    <li class="flex gap-2"><span class="text-secondary-500 font-bold" aria-hidden="true">·</span> Make defensible analytical decisions</li>
+                </ul>
+            </div>
+
+            <div class="rounded-2xl border border-accent-200 dark:border-accent-700/40 bg-white dark:bg-slate-800 p-6 sm:p-8 shadow-sm">
+                <h3 class="text-xl font-bold text-accent-600 dark:text-accent-400">Our Solution</h3>
+                <p class="mt-3 text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Just like a physical gym isolates muscle groups for targeted training, we isolate “data muscles” for focused exercise.
+                </p>
+                <ul class="mt-4 space-y-2 text-slate-700 dark:text-slate-300">
+                    <li class="flex gap-2"><span class="text-accent-500 font-bold" aria-hidden="true">✓</span> Structured practice tasks, not passive videos</li>
+                    <li class="flex gap-2"><span class="text-accent-500 font-bold" aria-hidden="true">✓</span> Progressive difficulty: add “weight” as you improve</li>
+                    <li class="flex gap-2"><span class="text-accent-500 font-bold" aria-hidden="true">✓</span> Repeat until mastery, like any other skill</li>
+                    <li class="flex gap-2"><span class="text-accent-500 font-bold" aria-hidden="true">✓</span> Experience a range of real-world datasets</li>
+                </ul>
+            </div>
+        </div>
+
+        <p class="rounded-2xl border-l-4 border-accent-500 bg-slate-50 dark:bg-slate-900/40 px-5 py-4 text-slate-700 dark:text-slate-300 italic">
+            Building analytical muscle memory at scale.
+        </p>
+    </section>
+
+    {# Audiences #}
+    <section class="space-y-6">
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white text-center">
+            Built for Data Professionals at Every Stage
+        </h2>
+        <div class="grid gap-6 md:grid-cols-3">
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">Aspiring Analysts</h3>
+                <p class="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Breaking into data science? You've learned the theory. Now build the muscles that separate junior analysts from confident practitioners.
+                </p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">Career Changers</h3>
+                <p class="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Switching into a data-focused role? Accelerate past the overwhelming feeling that everything is happening at once through small, manageable exercises.
+                </p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">SMEs &amp; Managers</h3>
+                <p class="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    Need to upskill your team without hiring externally? Use our platform to develop analytical capabilities in your existing talent.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    {# Comparison #}
+    <section class="space-y-4">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-white">How We're Different</h2>
+            <p class="mt-2 text-slate-600 dark:text-slate-300">
+                You've learned how to walk. How do you get stronger, so that you can go play football?
+            </p>
+        </div>
+        <div class="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
+            <table class="min-w-full text-sm text-left">
+                <thead class="bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-200">
+                    <tr>
+                        <th scope="col" class="px-4 py-3 font-semibold">Platform</th>
+                        <th scope="col" class="px-4 py-3 font-semibold">Approach</th>
+                        <th scope="col" class="px-4 py-3 font-semibold">Our Edge</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 dark:divide-slate-700 text-slate-600 dark:text-slate-300">
+                    <tr>
+                        <td class="px-4 py-3 font-medium text-slate-900 dark:text-white align-top">Coursera / Udemy / Kahn Academy</td>
+                        <td class="px-4 py-3 align-top">Passive content consumption</td>
+                        <td class="px-4 py-3 align-top"><strong class="text-slate-900 dark:text-white">Immediate hands-on execution:</strong> rather than focusing on theory, we give you real-world data for realistic practice.</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-medium text-slate-900 dark:text-white align-top">DataCamp / Dataquest / Brilliant</td>
+                        <td class="px-4 py-3 align-top">Guided syntax completion</td>
+                        <td class="px-4 py-3 align-top"><strong class="text-slate-900 dark:text-white">Meaningful, repeatable exercises:</strong> every exercise has three levels and can be reset for repetition with modified values, enabling repeatable practice.</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-medium text-slate-900 dark:text-white align-top">Kaggle / Bootcamps</td>
+                        <td class="px-4 py-3 align-top">Steep learning curve can be overwhelming</td>
+                        <td class="px-4 py-3 align-top"><strong class="text-slate-900 dark:text-white">Structured micro-challenges with progression:</strong> master one “data muscle” at a time without feeling overwhelmed.</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 py-3 font-medium text-slate-900 dark:text-white align-top">AI-Assisted Study</td>
+                        <td class="px-4 py-3 align-top">Self-learning, while asking AI for feedback</td>
+                        <td class="px-4 py-3 align-top"><strong class="text-slate-900 dark:text-white">Follow our curated curriculum:</strong> no more struggling with prompting or wasting tokens on inefficient exercises.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {# Password entry (replaces waitlist CTA) #}
+    <section id="enter" class="rounded-3xl border border-slate-200 dark:border-slate-700 bg-gradient-to-br from-posterior-50 via-white to-accent-50 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900 p-6 sm:p-10 shadow-sm">
+        <div class="max-w-xl mx-auto text-center">
+            <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+                Ready to Build Real Analytical Judgment?
+            </h2>
+            <p class="mt-3 text-slate-600 dark:text-slate-300 leading-relaxed">
+                Join other aspiring analysts, career changers, and teams building practical data skills. Enter the shared password to unlock the gym.
+            </p>
+            <form method="post" action="{% url 'site_gate' %}" class="mt-8 text-left space-y-4">
+                {% csrf_token %}
+                {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+                <label for="password" class="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                    Site password
+                </label>
+                <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autocomplete="current-password"
+                    autofocus
+                    required
+                    class="w-full rounded-lg border border-neutral-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2.5 text-base text-slate-900 dark:text-slate-100 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200 dark:focus:ring-primary-800"
+                >
+                {% if error %}
+                <p class="text-sm text-red-700 dark:text-red-400" role="alert">{{ error }}</p>
+                {% endif %}
+                <button
+                    type="submit"
+                    class="w-full sm:w-auto rounded-full bg-accent-500 px-6 py-3 text-sm font-semibold text-white shadow hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-300 transition"
+                >
+                    Enter the gym
+                </button>
+            </form>
+        </div>
+    </section>
+
+    {# Impressum summary with link to full page #}
+    <section id="impressum" class="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 sm:p-8 shadow-sm">
+        <h2 class="text-xl font-bold text-slate-900 dark:text-white">Impressum</h2>
+        <div class="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            <p><strong class="text-slate-900 dark:text-white">Angaben gemäß § 5 DDG:</strong></p>
+            <p>
+                Jim's Data Gym<br>
+                Inhaber: James Donahue<br>
+                Vogelhuettendeich 114<br>
+                21107 Hamburg
+            </p>
+            <p>
+                <strong class="text-slate-900 dark:text-white">Kontakt:</strong><br>
+                Telefon: 01577 7008408<br>
+                E-Mail: <a href="mailto:hello@jimsdatagym.com" class="text-primary-600 dark:text-primary-400 hover:underline">hello@jimsdatagym.com</a>
+            </p>
+            <p>
+                <strong class="text-slate-900 dark:text-white">Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV:</strong><br>
+                James Donahue, Vogelhuettendeich 114, 21107 Hamburg
+            </p>
+            <p>
+                <a href="{% url 'impressum' %}" class="font-semibold text-primary-600 dark:text-primary-400 hover:underline">Vollständiges Impressum</a>
+                ·
+                <a href="{% url 'imprint' %}" class="font-semibold text-primary-600 dark:text-primary-400 hover:underline">Site Notice (EN)</a>
+                ·
+                <a href="{% url 'privacy_policy' %}" class="font-semibold text-primary-600 dark:text-primary-400 hover:underline">Privacy Policy</a>
+            </p>
+        </div>
+    </section>
+</div>
+{% endblock %}

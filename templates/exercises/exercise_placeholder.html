@@ -15,9 +15,34 @@
     <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 p-8 text-center">
         <p class="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Coming soon</p>
         <h1 class="mt-3 text-3xl font-bold text-slate-900 dark:text-white">{{ exercise.title }}</h1>
-        <div class="mt-4 prose prose-slate dark:prose-invert mx-auto text-left">
+        <div class="mt-4 md-content prose prose-slate dark:prose-invert mx-auto text-left max-w-none">
             {{ exercise.render_intro_html }}
         </div>
     </div>
+
+    {% if previous_exercise or next_exercise %}
+    <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-stretch sm:justify-between">
+        {% if previous_exercise %}
+        <a href="{% url 'exercises:detail' previous_exercise.slug %}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition">
+            <span aria-hidden="true">&larr;</span>
+            <span class="text-left">
+                <span class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Previous Topic</span>
+                <span class="block">{{ previous_exercise.title }}</span>
+            </span>
+        </a>
+        {% else %}
+        <span class="hidden sm:block"></span>
+        {% endif %}
+        {% if next_exercise %}
+        <a href="{% url 'exercises:detail' next_exercise.slug %}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-primary-400 hover:text-primary-600 dark:hover:text-primary-400 transition sm:ml-auto sm:text-right">
+            <span class="text-right">
+                <span class="block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Next Topic</span>
+                <span class="block">{{ next_exercise.title }}</span>
+            </span>
+            <span aria-hidden="true">&rarr;</span>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
 </section>
 {% endblock %}

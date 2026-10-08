@@ -1,0 +1,21 @@
+{
+  "success_message": "Nice work. Your imputation passes the difficulty-aware checks.",
+  "failure_message": "Your fill does not pass yet. Remove NA values and refine the imputation approach.",
+  "graders": [
+    {
+      "id": "no_nulls",
+      "type": "invariant",
+      "next_action": "Fill every missing value in `df` before evaluating."
+    },
+    {
+      "id": "missing_core",
+      "type": "assertion",
+      "next_action": "On medium/hard, impute using the outcome variable (groupby/transform), not only a global constant."
+    },
+    {
+      "id": "grouped_fill_approach",
+      "type": "ast_process",
+      "next_action": "Use groupby/transform (or a merge of group statistics) so fills depend on another column."
+    }
+  ]
+}

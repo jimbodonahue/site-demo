@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Thanks{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-8 shadow-sm text-center space-y-4">
+    <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Thank you</h1>
+    <p class="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+        Thank you so much for your feedback. It helps us make the platform better{% if want_reply %} and we will be in touch shortly{% endif %}.
+    </p>
+    <a href="{% url 'home' %}" class="inline-flex rounded-full bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 transition">
+        Back to the landing page
+    </a>
+</div>
+{% endblock %}

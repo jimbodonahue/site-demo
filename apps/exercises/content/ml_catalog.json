@@ -1,0 +1,53 @@
+{
+  "exercises": [
+    {
+      "slug": "ml-data-preparation",
+      "title": "Data Preparation",
+      "order": 10,
+      "source": "ml_data_prep",
+      "passer": "ml_data_prep_passes(task, answer=answer, plotted=plotted)"
+    },
+    {
+      "slug": "ml-regression-strategies",
+      "title": "Regression Strategies",
+      "order": 20,
+      "source": "ml_regression",
+      "passer": "ml_regression_passes(task, answer=answer, plotted=plotted)"
+    },
+    {
+      "slug": "ml-intro-classification",
+      "title": "Intro to Classification",
+      "order": 30,
+      "source": "ml_classification",
+      "passer": "ml_classification_passes(task, answer=answer, plotted=plotted)"
+    },
+    {
+      "slug": "ml-advanced-classification",
+      "title": "Advanced Classification",
+      "order": 40,
+      "source": "ml_advanced_classification",
+      "passer": "ml_advanced_classification_passes(task, answer=answer, plotted=plotted)"
+    },
+    {
+      "slug": "ml-ensemble-methods",
+      "title": "Ensemble Methods",
+      "order": 50,
+      "source": "ml_ensembles",
+      "passer": "ml_ensembles_passes(task, answer=answer, plotted=plotted)"
+    },
+    {
+      "slug": "ml-unsupervised-learning",
+      "title": "Unsupervised Learning",
+      "order": 60,
+      "source": "ml_unsupervised",
+      "passer": "ml_unsupervised_passes(task, answer=answer, plotted=plotted)"
+    }
+  ],
+  "allowed_imports": [
+    "numpy",
+    "pandas",
+    "matplotlib.pyplot",
+    "sklearn",
+    "xgboost"
+  ]
+}
