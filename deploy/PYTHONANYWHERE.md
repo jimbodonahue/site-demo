@@ -51,6 +51,19 @@ Optional static/media mappings (WhiteNoise already serves `/static/`):
 
 - URL `/media/` → Directory `/home/YOURUSERNAME/site-demo/media`
 
-## 6. Reload
+## 6. Notebook runs (important)
+
+In `.env` make sure these are set (also in `.env.example`):
+
+```bash
+EXERCISE_INLINE_SANDBOX=1
+EXERCISE_ENABLE_RESOURCE_LIMITS=0
+```
+
+PythonAnywhere web workers often expose **uWSGI** as `sys.executable`, so a
+subprocess sandbox that calls `sys.executable -c ...` never runs student code.
+`EXERCISE_INLINE_SANDBOX=1` executes notebooks in-process instead.
+
+## 7. Reload
 
 Click **Reload** on the Web tab. If it fails, open the **Error log**.

@@ -70,6 +70,24 @@ EXERCISE_RUN_TIMEOUT = int(os.getenv("EXERCISE_RUN_TIMEOUT", "45"))
 TRUSTED_PROXY_COUNT = int(os.getenv("TRUSTED_PROXY_COUNT", "0"))
 EXERCISE_ENABLE_RESOURCE_LIMITS = os.getenv("EXERCISE_ENABLE_RESOURCE_LIMITS", "1") != "0"
 EXERCISE_ENABLE_SECOND_SEED = os.getenv("EXERCISE_ENABLE_SECOND_SEED", "1") != "0"
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not str(raw).strip():
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _default_inline_sandbox() -> bool:
+    """PythonAnywhere web workers often expose uWSGI as sys.executable."""
+    home = (os.getenv("HOME") or "").lower()
+    host = (os.getenv("HOSTNAME") or "").lower()
+    return "pythonanywhere" in home or "pythonanywhere" in host
+
+
+# Run notebook code in the web process instead of a subprocess.
+EXERCISE_INLINE_SANDBOX = _env_flag("EXERCISE_INLINE_SANDBOX", default=_default_inline_sandbox())
 if "test" in sys.argv:
     EXERCISE_RUN_RATE_LIMIT = 10_000
     EXERCISE_ENABLE_RESOURCE_LIMITS = False

@@ -857,6 +857,41 @@ class _WorkerResult:
         self.stderr = stderr
 
 
+def _looks_like_python_executable(path: str) -> bool:
+    base = os.path.basename(path or "").lower()
+    return "python" in base and "uwsgi" not in base
+
+
+def _resolve_worker_python() -> str:
+    """Return a real Python binary.
+
+    Under PythonAnywhere web workers ``sys.executable`` is often uWSGI, which
+    cannot run ``python -c ...`` notebook workers. Prefer the virtualenv.
+    """
+    candidates: list[str] = []
+    venv = os.environ.get("VIRTUAL_ENV")
+    if venv:
+        candidates.extend(
+            [
+                os.path.join(venv, "bin", "python"),
+                os.path.join(venv, "bin", "python3"),
+            ]
+        )
+    candidates.extend(
+        [
+            os.path.join(sys.prefix, "bin", "python"),
+            os.path.join(sys.prefix, "bin", "python3"),
+        ]
+    )
+    exe = sys.executable or ""
+    if _looks_like_python_executable(exe):
+        candidates.append(exe)
+    for path in candidates:
+        if path and os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return exe or "python3"
+
+
 def _run_worker(command, stdin_payload, cwd, env, timeout_seconds):
     """Run the sandbox worker in its own process group so a timeout kills any children."""
     process = subprocess.Popen(
@@ -868,6 +903,7 @@ def _run_worker(command, stdin_payload, cwd, env, timeout_seconds):
         cwd=cwd,
         env=env,
         start_new_session=True,
+        close_fds=True,
     )
     try:
         stdout, stderr = process.communicate(stdin_payload, timeout=timeout_seconds)
@@ -885,6 +921,28 @@ def _terminate_process_group(process) -> None:
         process.kill()
 
 
+def _worker_failure_result(data_state: dict | None, summary: str, error: str) -> dict[str, object]:
+    return {
+        "success": False,
+        "ran": False,
+        "core_passed": False,
+        "band": BAND_INCOMPLETE,
+        "cells": [],
+        "namespace": {},
+        "completed_cells": 0,
+        "evaluation": {
+            "passed": False,
+            "core_passed": False,
+            "summary": summary,
+            "checks": [],
+            "band": BAND_INCOMPLETE,
+        },
+        "progress": {"summary": summary, "passed": False, "completed_cells": 0, "ran": False},
+        "data_state": data_state or {},
+        "error": error,
+    }
+
+
 def run_notebook(
     cells: list[dict[str, str]],
     allowed_imports: list[str],
@@ -896,7 +954,9 @@ def run_notebook(
     soft_skill_prompt: str | None = None,
     reveal_expected: bool = False,
 ) -> dict[str, object]:
-    payload = {
+    from django.conf import settings as django_settings
+
+    payload_kwargs = {
         "cells": cells,
         "allowed_imports": allowed_imports,
         "data_state": data_state or {},
@@ -908,13 +968,26 @@ def run_notebook(
         "reveal_expected": reveal_expected,
     }
 
+    # In-process path for hosts where web workers cannot spawn a real Python
+    # child (notably PythonAnywhere, where sys.executable may be uWSGI).
+    inline = bool(getattr(django_settings, "EXERCISE_INLINE_SANDBOX", False))
+    worker_python = _resolve_worker_python()
+    if inline or not _looks_like_python_executable(worker_python):
+        try:
+            return _run_notebook_payload(**payload_kwargs)
+        except Exception as exc:
+            return _worker_failure_result(
+                data_state,
+                f"Notebook execution failed: {exc}",
+                traceback.format_exc(),
+            )
+
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     env = scrub_worker_env(os.environ)
     pythonpath = env.get("PYTHONPATH")
     env["PYTHONPATH"] = project_root if not pythonpath else f"{project_root}{os.pathsep}{pythonpath}"
     env["EXERCISE_SANDBOX_WORKER"] = "1"
     env["DJANGO_SETTINGS_MODULE"] = env.get("DJANGO_SETTINGS_MODULE") or "project_core.settings"
-    from django.conf import settings as django_settings
 
     env["EXERCISE_ENABLE_RESOURCE_LIMITS"] = (
         "1" if getattr(django_settings, "EXERCISE_ENABLE_RESOURCE_LIMITS", True) else "0"
@@ -934,7 +1007,7 @@ def run_notebook(
             env.pop(key, None)
 
     command = [
-        sys.executable,
+        worker_python,
         "-c",
         (
             "import json, sys; "
@@ -947,79 +1020,38 @@ def run_notebook(
 
     timeout_seconds = int(getattr(django_settings, "EXERCISE_RUN_TIMEOUT", 45))
     try:
-        completed = _run_worker(command, json.dumps(payload), project_root, env, timeout_seconds)
+        completed = _run_worker(
+            command, json.dumps(payload_kwargs), project_root, env, timeout_seconds
+        )
     except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "ran": False,
-            "core_passed": False,
-            "band": BAND_INCOMPLETE,
-            "cells": [],
-            "namespace": {},
-            "completed_cells": 0,
-            "evaluation": {
-                "passed": False,
-                "core_passed": False,
-                "summary": "Notebook execution timed out.",
-                "checks": [],
-                "band": BAND_INCOMPLETE,
-            },
-            "progress": {
-                "summary": "Notebook execution timed out.",
-                "passed": False,
-                "completed_cells": 0,
-                "ran": False,
-            },
-            "data_state": data_state or {},
-            "error": "Execution timed out in isolated worker.",
-        }
+        return _worker_failure_result(
+            data_state,
+            "Notebook execution timed out.",
+            "Execution timed out in isolated worker.",
+        )
+    except OSError as exc:
+        # Last resort on restricted hosts: run in-process.
+        try:
+            return _run_notebook_payload(**payload_kwargs)
+        except Exception:
+            return _worker_failure_result(
+                data_state,
+                f"Could not start notebook worker: {exc}",
+                str(exc),
+            )
 
     if completed.returncode != 0:
         stderr = completed.stderr.strip() or "Notebook worker exited without returning a result."
-        return {
-            "success": False,
-            "ran": False,
-            "core_passed": False,
-            "band": BAND_INCOMPLETE,
-            "cells": [],
-            "namespace": {},
-            "completed_cells": 0,
-            "evaluation": {
-                "passed": False,
-                "core_passed": False,
-                "summary": stderr,
-                "checks": [],
-                "band": BAND_INCOMPLETE,
-            },
-            "progress": {"summary": stderr, "passed": False, "completed_cells": 0, "ran": False},
-            "data_state": data_state or {},
-            "error": stderr,
-        }
+        # uWSGI mis-invocation still shows up if path resolution was wrong.
+        if "unable to load configuration" in stderr.lower() or "uwsgi" in stderr.lower():
+            return _run_notebook_payload(**payload_kwargs)
+        return _worker_failure_result(data_state, stderr, stderr)
 
     try:
         return json.loads(completed.stdout.strip().splitlines()[-1])
     except Exception:
-        return {
-            "success": False,
-            "ran": False,
-            "core_passed": False,
-            "band": BAND_INCOMPLETE,
-            "cells": [],
-            "namespace": {},
-            "completed_cells": 0,
-            "evaluation": {
-                "passed": False,
-                "core_passed": False,
-                "summary": "Invalid worker response.",
-                "checks": [],
-                "band": BAND_INCOMPLETE,
-            },
-            "progress": {
-                "summary": "Invalid worker response.",
-                "passed": False,
-                "completed_cells": 0,
-                "ran": False,
-            },
-            "data_state": data_state or {},
-            "error": completed.stdout or completed.stderr or "Invalid worker response.",
-        }
+        return _worker_failure_result(
+            data_state,
+            "Invalid worker response.",
+            completed.stdout or completed.stderr or "Invalid worker response.",
+        )
