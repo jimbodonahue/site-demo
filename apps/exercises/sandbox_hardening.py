@@ -79,13 +79,38 @@ def _guard_path_args(func: Any, *, path_param_names: tuple[str, ...] = ("path_or
 	return wrapper
 
 
+# (owner, attr_name, original_callable) — process-global so inline sandboxes can
+# restore pandas/numpy after a run (subprocess workers exit instead).
+_LIBRARY_IO_PATCHES: list[tuple[Any, str, Any]] = []
+
+
 def _patch_callable(owner: Any, name: str, replacement: Any | None = None) -> None:
 	if owner is None or not hasattr(owner, name):
 		return
 	try:
+		original = getattr(owner, name)
+	except Exception:
+		return
+	# Avoid stacking wrappers if harden runs twice before restore.
+	for existing_owner, existing_name, _original in _LIBRARY_IO_PATCHES:
+		if existing_owner is owner and existing_name == name:
+			break
+	else:
+		_LIBRARY_IO_PATCHES.append((owner, name, original))
+	try:
 		setattr(owner, name, replacement or _blocked)
 	except Exception:
 		pass
+
+
+def restore_library_io_patches() -> None:
+	"""Undo harden_* mutations so host code can load/cache datasets again."""
+	while _LIBRARY_IO_PATCHES:
+		owner, name, original = _LIBRARY_IO_PATCHES.pop()
+		try:
+			setattr(owner, name, original)
+		except Exception:
+			pass
 
 
 def harden_pandas(pd_module: Any) -> None:
@@ -177,6 +202,8 @@ def harden_namespace_modules(namespace: dict[str, Any]) -> None:
 	pd_module = namespace.get("pd") or namespace.get("pandas")
 	np_module = namespace.get("np") or namespace.get("numpy")
 	plt_module = namespace.get("plt") or namespace.get("pyplot")
+	# Idempotent: drop any prior patches before re-applying.
+	restore_library_io_patches()
 	harden_pandas(pd_module)
 	harden_numpy(np_module)
 	harden_matplotlib(plt_module)

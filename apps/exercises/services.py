@@ -89,6 +89,7 @@ from apps.exercises.sandbox_hardening import (
 	apply_resource_limits,
 	blocked_path_attr_guard,
 	harden_namespace_modules,
+	restore_library_io_patches,
 	scrub_worker_env,
 )
 
@@ -408,6 +409,9 @@ def _load_allowed_modules(allowed_imports: list[str]) -> dict[str, object]:
 
 
 def _build_namespace(allowed_imports: list[str], data_state: dict) -> dict[str, object]:
+    # Inline sandboxes mutate process-global pandas/numpy; restore before host
+    # dataset prep so read_csv / to_csv caching still works.
+    restore_library_io_patches()
     builtins = SAFE_BUILTINS.copy()
     builtins["__import__"] = _make_safe_import(allowed_imports)
     namespace: dict[str, object] = {"__builtins__": builtins}
@@ -594,6 +598,36 @@ def _execute_cell_local(
 
 
 def _run_notebook_payload(
+    cells: list[dict[str, str]],
+    allowed_imports: list[str],
+    data_state: dict,
+    previous_results: list[dict[str, object]] | None,
+    evaluation_rules: dict | None,
+    mode: str = MODE_EVALUATE,
+    soft_skill_response: str | None = None,
+    soft_skill_prompt: str | None = None,
+    skip_second_seed: bool = False,
+    reveal_expected: bool = False,
+) -> dict[str, object]:
+    try:
+        return _run_notebook_payload_impl(
+            cells=cells,
+            allowed_imports=allowed_imports,
+            data_state=data_state,
+            previous_results=previous_results,
+            evaluation_rules=evaluation_rules,
+            mode=mode,
+            soft_skill_response=soft_skill_response,
+            soft_skill_prompt=soft_skill_prompt,
+            skip_second_seed=skip_second_seed,
+            reveal_expected=reveal_expected,
+        )
+    finally:
+        # Inline sandbox patches process-global pandas/numpy; always undo.
+        restore_library_io_patches()
+
+
+def _run_notebook_payload_impl(
     cells: list[dict[str, str]],
     allowed_imports: list[str],
     data_state: dict,
